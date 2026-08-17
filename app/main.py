@@ -1,10 +1,16 @@
 from fastapi import FastAPI
 
+from app.database import init_db
+
 app = FastAPI(
     title="Advocate contract API",
     description="AI- Powered Contact Analysis and Management System",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()  # Initialize the database and create indexes
 
 
 @app.get("/")   
