@@ -6,6 +6,15 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Local runtime files and data
+*.log
+logs/
+data/
+uploads/
+mongo_data/
+*.sqlite
+*.sqlite3
+
 # Virtual environments
 .venv/
 venv/

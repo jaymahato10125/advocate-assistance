@@ -9,7 +9,8 @@ def extract_text_from_txt(file_path: str) -> str:
         file_path (str): The path to the TXT file.
     """
     with open(file_path, "r", encoding="utf-8") as f:
-        return f.read()
+        text = f.read()
+        return {"text": text.strip(), "page_count": "1", "word_count": str(len(text.split()))}
 
 def extract_text_from_pdf(file_path: str) -> str:
     """
@@ -22,7 +23,7 @@ def extract_text_from_pdf(file_path: str) -> str:
     text = ""
     for page in reader.pages:
         text += page.extract_text() or ""
-    return text
+    return {"text": text.strip(), "page_count": str(len(reader.pages)), "word_count": str(len(text.split()))}
 
 def extract_text(file_path: str) -> str:
     """

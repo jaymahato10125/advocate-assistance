@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 import os
 import uuid
-from config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOADS_DIR
-from service.document_parser import extract_text    
+from app.models import Contact
+from app.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, UPLOADS_DIR
+from app.service.document_parser import extract_text
+from app.database import contracts_collection
 
 router = APIRouter(
     prefix="/contracts",
@@ -34,3 +36,23 @@ async def upload_contract(
         f.write(content)
 
     parsed = extract_text(file_path)
+
+    contract_data = Contact(
+        filename=unique_name,
+        original_name=file.filename,
+        text_content=parsed["text"] if isinstance(parsed, dict) else parsed,
+        page_count=int(parsed["page_count"]) if isinstance(parsed, dict) else len(parsed.splitlines()),
+        word_count=int(parsed["word_count"]) if isinstance(parsed, dict) else len(parsed.split()),
+    )
+
+    doc = contract_data.model_dump()
+    result = contracts_collection.insert_one(doc)
+    contract_data.id = str(result.inserted_id)
+
+    return {
+        "message": "File uploaded and processed successfully.", 
+        "contract_id": contract_data.model_dump(),
+        "id": contract_data.id
+        }
+
+

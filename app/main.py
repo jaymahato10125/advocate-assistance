@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from app.database import init_db
 
-from routes.contracts import router as contracts_router
+from app.routes.contracts import router as contracts_router
 
 app = FastAPI(
     title="Advocate contract API",
