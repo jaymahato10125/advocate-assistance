@@ -56,3 +56,28 @@ async def upload_contract(
         }
 
 
+@router.get("/")
+async def list_contracts():
+    """
+    List all uploaded contracts.
+    """
+    contracts = []
+    for doc in contracts_collection.find({}, {"text_content": 0}):  # Exclude text content for listing
+        contract = Contact(**doc)
+        contract.id = str(doc["_id"])
+        contracts.append(contract.model_dump())
+    return contracts
+
+@router.get("/{contract_id}")
+async def get_contract(contract_id: str):
+    """
+    Get details of a specific contract by its ID.
+    """
+    from bson import ObjectId
+    doc = contracts_collection.find_one({"_id": ObjectId(contract_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Contract not found.")
+    
+    contract = Contact(**doc)
+    contract.id = str(doc["_id"])
+    return contract.model_dump()
