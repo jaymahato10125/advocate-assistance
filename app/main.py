@@ -2,6 +2,8 @@ from fastapi import FastAPI
 
 from app.database import init_db
 
+from routes.contracts import router as contracts_router
+
 app = FastAPI(
     title="Advocate contract API",
     description="AI- Powered Contact Analysis and Management System",
@@ -27,3 +29,5 @@ async def root():
             "GET /analysis/contracts/{contract_id}": "Retrieve a list of all analysis results"
         }
     }
+
+app.include_router(contracts_router)
