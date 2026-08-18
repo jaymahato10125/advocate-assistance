@@ -240,8 +240,8 @@ function OverviewTab({
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 {contract.status === "analyzed"
-                  ? "This contract was analyzed in a previous session — the API cannot serve past results yet, so run the analysis again to view them."
-                  : "No analysis has been run in this session. Gemini will summarize the contract, extract key clauses, and flag risks by severity."}
+                  ? "This contract was analyzed previously. Open the Analysis tab to view the saved results."
+                  : "No analysis has been saved yet. Gemini will summarize the contract, extract key clauses, and flag risks by severity."}
               </p>
               <Button onClick={onAnalyzeClick}>
                 <Sparkles aria-hidden="true" />

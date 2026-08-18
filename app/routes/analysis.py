@@ -3,12 +3,20 @@ from fastapi import APIRouter, HTTPException
 
 from app.config import GEMINI_API_KEY
 from app.database import analysis_collection, contracts_collection
+from app.models import AnalysisResult
 from app.service.gemini_analyse import analyze_contract as analyze_contract_service
 
 router = APIRouter(
     prefix="/analysis",
     tags=["Analysis"],
 )
+
+
+def _analysis_from_document(doc: dict) -> AnalysisResult:
+    """Convert a MongoDB analysis document into the public API model."""
+    doc = {**doc, "id": str(doc["_id"])}
+    doc.pop("_id", None)
+    return AnalysisResult(**doc)
 
 @router.post("/analyze/{contract_id}")
 async def analyze_contract_endpoint(contract_id: str):
@@ -58,3 +66,32 @@ async def analyze_contract_endpoint(contract_id: str):
         "analysis": result,
         "id": result.id
     }
+
+
+@router.get("/contracts/{contract_id}", response_model=AnalysisResult)
+async def get_latest_contract_analysis(contract_id: str):
+    """Return the most recent saved analysis for a contract."""
+    if not ObjectId.is_valid(contract_id):
+        raise HTTPException(status_code=400, detail="Invalid contract ID.")
+
+    doc = analysis_collection.find_one(
+        {"contract_id": contract_id},
+        sort=[("analysis_date", -1), ("_id", -1)],
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+
+    return _analysis_from_document(doc)
+
+
+@router.get("/{analysis_id}", response_model=AnalysisResult)
+async def get_analysis(analysis_id: str):
+    """Return a saved analysis by its MongoDB ID."""
+    if not ObjectId.is_valid(analysis_id):
+        raise HTTPException(status_code=400, detail="Invalid analysis ID.")
+
+    doc = analysis_collection.find_one({"_id": ObjectId(analysis_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+
+    return _analysis_from_document(doc)

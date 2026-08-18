@@ -90,11 +90,8 @@ The implemented endpoints are:
 | `GET` | `/contracts/` | List uploaded contracts (without text content). |
 | `GET` | `/contracts/{id}` | Retrieve a contract by its MongoDB `_id`. |
 | `POST` | `/analysis/analyze/{contract_id}` | Analyze a contract with Gemini and store the result. |
-
-Not implemented yet:
-
-- `GET /analysis/{analysis_id}` — Retrieve analysis results
-- `GET /analysis/contracts/{contract_id}` — List analysis results for a contract
+| `GET` | `/analysis/contracts/{contract_id}` | Retrieve the latest saved analysis for a contract. |
+| `GET` | `/analysis/{analysis_id}` | Retrieve a saved analysis by its MongoDB `_id`. |
 
 ## How it works
 

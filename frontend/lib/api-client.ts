@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "@/lib/config";
 import type {
   AnalyzeContractResponse,
+  AnalysisResult,
   Contract,
   UploadContractResponse,
 } from "@/types/contract";
@@ -112,6 +113,9 @@ function uploadContract(
 export const api = {
   listContracts: () => request<Contract[]>("/contracts/"),
   getContract: (id: string) => request<Contract>(`/contracts/${id}`),
+  getAnalysisByContract: (contractId: string) =>
+    request<AnalysisResult>(`/analysis/contracts/${contractId}`),
+  getAnalysis: (id: string) => request<AnalysisResult>(`/analysis/${id}`),
   analyzeContract: (id: string) =>
     request<AnalyzeContractResponse>(`/analysis/analyze/${id}`, { method: "POST" }),
   uploadContract,

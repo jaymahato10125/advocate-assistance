@@ -29,9 +29,8 @@ const staggerItem: Variants = {
 };
 
 /**
- * Analysis results are only ever available from the POST response — the API
- * has no GET for analyses yet — so this panel reads the session cache and
- * otherwise shows a clean "run analysis" empty state.
+ * Analysis results are loaded from the API and cached client-side for the
+ * current session. A POST analysis response updates the same query cache.
  */
 export function AnalysisPanel({ contract }: { contract: Contract }) {
   const { data: cached } = useCachedAnalysis(contract.id);

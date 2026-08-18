@@ -3,32 +3,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { contractKeys } from "@/hooks/use-contracts";
-import { api } from "@/lib/api-client";
+import { ApiError, api } from "@/lib/api-client";
 import type { AnalysisResult } from "@/types/contract";
 
 export const analysisKeys = {
   byContract: (contractId: string) => ["analysis", contractId] as const,
 };
 
-/**
- * The backend has no GET endpoint for analysis results yet, so the only
- * place an analysis exists on the client is in this in-memory cache, keyed
- * by contract id, for the duration of the session. The query never fetches
- * (enabled: false) — it is populated exclusively by useAnalyzeContract's
- * onSuccess via setQueryData.
- */
 export function useCachedAnalysis(contractId: string) {
-  return useQuery<AnalysisResult>({
+  return useQuery<AnalysisResult | null>({
     queryKey: analysisKeys.byContract(contractId),
-    // Never fires (enabled: false) — data only enters this cache via
-    // queryClient.setQueryData in useAnalyzeContract's onSuccess.
-    queryFn: () =>
-      Promise.reject(
-        new Error(
-          "Analysis results cannot be re-fetched yet — run the analysis to view them.",
-        ),
-      ),
-    enabled: false,
+    queryFn: async () => {
+      try {
+        return await api.getAnalysisByContract(contractId);
+      } catch (error) {
+        // A contract without a saved analysis is an expected empty state.
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    enabled: Boolean(contractId),
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
   });
