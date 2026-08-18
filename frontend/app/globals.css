@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Vakeel Contracts design system.
+ * Light: warm legal paper (#FAFAF8) with warm charcoal ink.
+ * Dark: deep charcoal-navy (#0B0F14 → #0F1620).
+ * One confident accent — deep emerald. Muted gold used sparingly for
+ * editorial highlights. Red/amber are reserved strictly for risk severity.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-risk-low: var(--risk-low);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-high: var(--risk-high);
+  --color-risk-critical: var(--risk-critical);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-pulse-soft: pulse-soft 2.2s ease-in-out infinite;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+}
+
+:root {
+  --radius: 0.625rem;
+
+  --background: #fafaf8;
+  --foreground: #1b1a16;
+  --card: #ffffff;
+  --card-foreground: #1b1a16;
+  --popover: #ffffff;
+  --popover-foreground: #1b1a16;
+  --primary: #0c5b44;
+  --primary-foreground: #f2faf6;
+  --secondary: #efede5;
+  --secondary-foreground: #26251f;
+  --muted: #f0eee7;
+  --muted-foreground: #61635a;
+  --accent: #e9e7de;
+  --accent-foreground: #26251f;
+  --destructive: #b3261e;
+  --destructive-foreground: #fbf5f4;
+  --border: #e3e1d6;
+  --input: #d8d5c8;
+  --ring: #0c5b44;
+  --gold: #97742a;
+
+  --risk-low: #0c5b44;
+  --risk-medium: #a16207;
+  --risk-high: #b4441c;
+  --risk-critical: #b3261e;
+}
+
+.dark {
+  --background: #0b0f14;
+  --foreground: #e7eae5;
+  --card: #0f1620;
+  --card-foreground: #e7eae5;
+  --popover: #0f1620;
+  --popover-foreground: #e7eae5;
+  --primary: #4cbd90;
+  --primary-foreground: #06130d;
+  --secondary: #182230;
+  --secondary-foreground: #e7eae5;
+  --muted: #141d29;
+  --muted-foreground: #8c96a4;
+  --accent: #1c2837;
+  --accent-foreground: #e7eae5;
+  --destructive: #e15b4d;
+  --destructive-foreground: #1a0b09;
+  --border: #1e2a3a;
+  --input: #2a3a4e;
+  --ring: #4cbd90;
+  --gold: #c9a44c;
+
+  --risk-low: #4cbd90;
+  --risk-medium: #dfa53e;
+  --risk-high: #e0743f;
+  --risk-critical: #e15b4d;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 32%, transparent);
+    border: 2px solid var(--background);
+    border-radius: 8px;
+  }
+}
+
+/* Subtle film grain for hero surfaces — applied at very low opacity. */
+@utility bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Fine dot grid used behind the landing hero. */
+@utility bg-dotgrid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--foreground) 14%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 28px 28px;
+}

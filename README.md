@@ -1,11 +1,14 @@
-# Vakeel Contracts API
+# Vakeel Contracts
 
-Vakeel Contracts API is a FastAPI service for uploading contracts (PDF/TXT), extracting their text, and analyzing them with Google Gemini (key clauses, risk flags, recommendations). It uses MongoDB to store contracts and analysis records.
+Vakeel Contracts is a full-stack legal-tech app for uploading contracts (PDF/TXT), extracting their text, and analyzing them with Google Gemini (key clauses, severity-tagged risk flags, an overall risk level, and recommendations):
+
+- **Backend** (this directory, `app/`) — FastAPI + MongoDB API.
+- **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion). See [`frontend/README.md`](frontend/README.md) for details.
 
 ## Requirements
 
-- Python 3.10+
-- `pip`
+- Python 3.10+ and `pip`
+- Node.js 18.18+ and `npm` (for the frontend)
 - Docker Desktop with Docker Compose, or a local MongoDB installation
 
 ## Quick start
@@ -44,6 +47,16 @@ uvicorn app.main:app --reload
 ```
 
 The API is available at <http://127.0.0.1:8000>.
+
+Then start the frontend (in a second terminal):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend is available at <http://localhost:3000>. In development, it proxies `/api/*` to the FastAPI server at `http://127.0.0.1:8000/*`, so no CORS setup is needed—just start the backend first. For production, set `NEXT_PUBLIC_API_BASE_URL` to the deployed API origin (see `frontend/.env.example`).
 
 ## Configuration
 
@@ -108,7 +121,7 @@ Not implemented yet:
 
 ```text
 .
-├── app/
+├── app/                        # FastAPI backend
 │   ├── __init__.py             # Python package marker
 │   ├── config.py               # Environment configuration
 │   ├── database.py             # MongoDB client, collections, and startup index cleanup
@@ -122,7 +135,13 @@ Not implemented yet:
 │   │   ├── gemini_analyse.py   # Gemini API client and response parsing
 │   │   └── prompt.py           # Analysis prompts
 │   └── uploads/                # Uploaded contract files
+├── frontend/                   # Next.js 15 frontend (see frontend/README.md)
+│   ├── app/                    # App Router pages (marketing, dashboard)
+│   ├── components/             # UI components (shadcn/ui-style)
+│   ├── lib/                    # API client, config, validation
+│   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
 ├── docker-compose.yml          # Local MongoDB service
+├── implement.md                # Build specification used for the frontend
 ├── requirements.txt            # Pinned Python dependencies
 └── README.md
 ```
