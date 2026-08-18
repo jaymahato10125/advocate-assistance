@@ -1,5 +1,6 @@
 "use client";
 
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, Scale, X } from "lucide-react";
 import Link from "next/link";
@@ -41,29 +42,39 @@ export function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-          {NAV_LINKS.map((link) => {
-            const active = pathname.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
+          <Show when="signed-in">
+            {NAV_LINKS.map((link) => {
+              const active = pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40",
+                    active
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </Show>
           <div className="ml-2 flex items-center gap-2">
             <ModeToggle />
-            <Button asChild size="sm">
-              <Link href="/dashboard">Open dashboard</Link>
-            </Button>
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <Button size="sm">Sign in</Button>
+              </SignInButton>
+            </Show>
+            <Show when="signed-in">
+              <Button asChild size="sm">
+                <Link href="/dashboard">Open dashboard</Link>
+              </Button>
+              <UserButton />
+            </Show>
           </div>
         </nav>
 
@@ -93,18 +104,31 @@ export function SiteHeader() {
             aria-label="Mobile"
           >
             <div className="flex flex-col gap-1 px-4 py-3">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  {link.label}
-                </Link>
-              ))}
-              <Button asChild className="mt-1">
-                <Link href="/dashboard">Open dashboard</Link>
-              </Button>
+              <Show when="signed-in">
+                {NAV_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </Show>
+              <Show when="signed-out">
+                <SignInButton mode="modal">
+                  <Button className="mt-1">Sign in</Button>
+                </SignInButton>
+              </Show>
+              <Show when="signed-in">
+                <Button asChild className="mt-1">
+                  <Link href="/dashboard">Open dashboard</Link>
+                </Button>
+                <div className="mt-2 flex items-center gap-2 px-1">
+                  <UserButton />
+                  <span className="text-sm text-muted-foreground">Account</span>
+                </div>
+              </Show>
             </div>
           </motion.nav>
         ) : null}

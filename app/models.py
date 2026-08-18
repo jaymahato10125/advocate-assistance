@@ -12,6 +12,7 @@ class RiskLevel(str, Enum):
 
 class Contact(BaseModel):
     id: Optional[str] = None
+    owner_id: str = ""  # Clerk user id; empty on pre-auth legacy documents
     filename: str
     original_name: str
     upload_date: str = ""

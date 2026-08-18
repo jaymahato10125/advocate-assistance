@@ -78,6 +78,9 @@ Frontend-specific environment variables belong in `frontend/.env.local` (or
 | `NEXT_PUBLIC_API_BASE_URL` | Deployed FastAPI API origin. In development, leave it unset to use the `/api` proxy. |
 | `API_PROXY_TARGET` | Development proxy target; defaults to `http://127.0.0.1:8000`. |
 | `NEXT_PUBLIC_SITE_URL` | Public site URL used for metadata and sharing images. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (safe for the browser). |
+| `CLERK_SECRET_KEY` | Clerk secret key — must match the backend's `CLERK_SECRET_KEY`. Server-only. |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Auth page paths (`/sign-in`, `/sign-up`). |
 
 The frontend mirrors the backend upload constraints in `frontend/lib/config.ts`.
 If `ALLOWED_EXTENSIONS` or `MAX_FILE_SIZE_MB` changes in the backend, update the
@@ -85,8 +88,24 @@ frontend values as well.
 
 Analysis results are persisted in MongoDB and reloaded through
 `GET /analysis/contracts/{contract_id}`. The frontend also keeps the result in
-the TanStack Query cache for the current session. Authentication is not
-implemented yet; `frontend/lib/auth.ts` is the integration seam for adding it.
+the TanStack Query cache for the current session.
+
+### Authentication (Clerk)
+
+The app uses [Clerk](https://clerk.com) for authentication. Next.js middleware
+(`frontend/middleware.ts`) protects `/dashboard/*`, and the browser attaches a
+Clerk session token (`Authorization: Bearer <token>`) to every API call through
+`frontend/lib/auth.ts`. The FastAPI backend verifies the token with the Clerk
+Python SDK (`app/auth.py`) and scopes every contract and analysis to its
+owner's Clerk user id — users only ever see their own documents.
+
+To enable it: create a Clerk application, set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+and `CLERK_SECRET_KEY` in `frontend/.env.local`, and set the same
+`CLERK_SECRET_KEY` in the backend `.env` (see `.env.example` and
+`frontend/.env.example`). For local development without Clerk, set
+`AUTH_DISABLED=true` in the backend `.env` — every request is then treated as a
+fixed dev user and all documents stay visible. **Never enable `AUTH_DISABLED`
+in production.**
 
 ## Configuration
 
@@ -106,6 +125,10 @@ The application reads configuration from `.env` using `python-dotenv`:
 | `UPLOADS_DIR` | No | `uploads` | Local upload directory used only when `STORAGE_BACKEND=local`. |
 | `ALLOWED_EXTENSIONS` | No | `[".pdf", ".txt"]` | Allowed upload extensions (JSON array or comma-separated). |
 | `MAX_FILE_SIZE_MB` | No | `10` | Maximum upload size in megabytes. |
+| `CLERK_SECRET_KEY` | Yes (unless `AUTH_DISABLED=true`) | — | Clerk secret key used to verify session tokens. Must match the frontend's key. |
+| `CLERK_AUTHORIZED_PARTIES` | No | `["http://localhost:3000"]` | Origins allowed in the session token's `azp` claim (JSON array or comma-separated). |
+| `CORS_ORIGINS` | No | `["http://localhost:3000"]` | Browser origins allowed to call the API directly (production; the dev proxy makes this a no-op locally). |
+| `AUTH_DISABLED` | No | `false` | Local-dev escape hatch: skips Clerk verification and treats every request as a fixed dev user. Never `true` in production. |
 
 ## API documentation
 
@@ -116,7 +139,8 @@ Interactive documentation is available while the API is running:
 
 ## API endpoints
 
-The implemented endpoints are:
+The implemented endpoints are (all except `GET /` require a Clerk session token
+as `Authorization: Bearer <token>`):
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -144,6 +168,7 @@ The implemented endpoints are:
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
 - Contract deletion returns `503`: verify the R2 endpoint, bucket name, and bucket-scoped API token in `.env`; the contract remains in MongoDB if its stored file cannot be deleted.
 - Analysis returns `502`: the response `detail` includes the underlying Gemini API cause. Gemini 3.6 Flash does not need a `temperature` parameter; keep the request compatible with the current Gemini API and verify the API key, quota, and model name.
+- API returns `401 Not authenticated`: the request is missing a valid Clerk session token — sign in through the frontend and confirm `CLERK_SECRET_KEY` matches between backend and frontend (or set `AUTH_DISABLED=true` for local dev).
 
 ## Project structure
 
@@ -151,6 +176,7 @@ The implemented endpoints are:
 .
 ├── app/                        # FastAPI backend
 │   ├── __init__.py             # Python package marker
+│   ├── auth.py                 # Clerk session-token verification (get_current_user)
 │   ├── config.py               # Environment configuration
 │   ├── database.py             # MongoDB client, collections, and startup index cleanup
 │   ├── main.py                 # FastAPI application setup
@@ -168,10 +194,12 @@ The implemented endpoints are:
 │   ├── app/                    # App Router pages (marketing, dashboard)
 │   ├── components/             # UI, contract, and analysis components
 │   ├── hooks/                  # TanStack Query hooks
-│   ├── lib/                    # API client, config, validation, auth seam
+│   ├── lib/                    # API client, config, validation, Clerk auth
 │   ├── types/                  # Frontend API response types
+│   ├── middleware.ts           # Clerk route protection for /dashboard/*
 │   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
-├── implement.md                # Build specification used for the frontend
+├── tests/                      # Pytest suite (auth and owner scoping)
+├── clerkAuth.md                # Clerk authentication implementation plan
 ├── requirements.txt            # Pinned Python dependencies
 └── README.md
 ```

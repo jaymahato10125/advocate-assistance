@@ -42,26 +42,51 @@ if STORAGE_BACKEND == "r2" and not _r2_is_configured:
     )
 
 
-def _parse_allowed_extensions(value: str) -> list[str]:
-    """Parse a JSON or comma-separated extension list from the environment."""
+def _parse_str_list(value: str) -> list[str]:
+    """Parse a JSON or comma-separated string list from the environment."""
     try:
-        extensions = json.loads(value)
+        items = json.loads(value)
     except json.JSONDecodeError:
-        extensions = value.strip("[]").split(",")
+        items = value.strip("[]").split(",")
 
-    if isinstance(extensions, str):
-        extensions = [extensions]
+    if isinstance(items, str):
+        items = [items]
 
     return [
-        extension.strip().strip("'\"").lower()
-        for extension in extensions
-        if extension.strip().strip("'\"")
+        item.strip().strip("'\"").lower()
+        for item in items
+        if item.strip().strip("'\"")
     ]
 
 
-ALLOWED_EXTENSIONS = _parse_allowed_extensions(
+ALLOWED_EXTENSIONS = _parse_str_list(
     os.getenv("ALLOWED_EXTENSIONS", '[".pdf", ".txt"]')
 )
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "10"))  # Maximum file size in megabytes
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
+# --- Clerk authentication ---------------------------------------------------
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "").strip()
+
+# Origins allowed in the session token's `azp` claim — rejects tokens minted
+# for a different Clerk application. JSON or comma-separated list.
+CLERK_AUTHORIZED_PARTIES = _parse_str_list(
+    os.getenv("CLERK_AUTHORIZED_PARTIES", '["http://localhost:3000"]')
+)
+
+# Dev/test escape hatch: when true, requests are treated as a fixed local user
+# and no Clerk verification happens. Must NEVER be true in production.
+AUTH_DISABLED = os.getenv("AUTH_DISABLED", "false").strip().lower() == "true"
+
+if not AUTH_DISABLED and not CLERK_SECRET_KEY:
+    raise RuntimeError(
+        "CLERK_SECRET_KEY is required. Copy it from the Clerk dashboard, or "
+        "set AUTH_DISABLED=true for local development without authentication."
+    )
+
+# Browser origins allowed to call the API cross-origin (production, where the
+# frontend talks to the API directly instead of through the Next.js dev proxy).
+CORS_ORIGINS = _parse_str_list(
+    os.getenv("CORS_ORIGINS", '["http://localhost:3000"]')
+)

@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import type { ReactNode } from "react";
@@ -54,10 +55,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
     >
       <body className="flex min-h-svh flex-col bg-background font-sans text-foreground antialiased">
-        <Providers>
-          <SiteHeader />
-          <main className="flex flex-1 flex-col">{children}</main>
-        </Providers>
+        <ClerkProvider>
+          <Providers>
+            <SiteHeader />
+            <main className="flex flex-1 flex-col">{children}</main>
+          </Providers>
+        </ClerkProvider>
       </body>
     </html>
   );

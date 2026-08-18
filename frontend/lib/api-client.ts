@@ -1,3 +1,4 @@
+import { getAuthHeaders, handleUnauthorized } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/config";
 import type {
   AnalyzeContractResponse,
@@ -46,11 +47,13 @@ function extractDetail(payload: unknown, fallback: string): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const authHeaders = await getAuthHeaders();
+
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      headers: { Accept: "application/json", ...init?.headers },
+      headers: { Accept: "application/json", ...authHeaders, ...init?.headers },
     });
   } catch {
     throw new ApiError(0, NETWORK_ERROR_DETAIL);
@@ -63,6 +66,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Non-JSON error body — keep the fallback.
     }
+    if (response.status === 401) handleUnauthorized();
     throw new ApiError(response.status, detail);
   }
 
@@ -75,14 +79,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * Upload uses XMLHttpRequest (rather than fetch) so we get real upload
  * progress events for the dropzone progress bar.
  */
-function uploadContract(
+async function uploadContract(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<UploadContractResponse> {
+  const authHeaders = await getAuthHeaders();
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE_URL}/contracts/upload`);
     xhr.responseType = "json";
+
+    for (const [name, value] of Object.entries(authHeaders)) {
+      xhr.setRequestHeader(name, value);
+    }
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
@@ -95,6 +105,7 @@ function uploadContract(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(payload as UploadContractResponse);
       } else {
+        if (xhr.status === 401) handleUnauthorized();
         reject(
           new ApiError(
             xhr.status,

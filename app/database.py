@@ -24,3 +24,6 @@ def init_db():
     ):
         if index_name in collection.index_information():
             collection.drop_index(index_name)
+
+    # Contracts are scoped to their owner's Clerk user id on every query.
+    contracts_collection.create_index("owner_id")
