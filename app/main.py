@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.database import init_db
 
 from app.routes.contracts import router as contracts_router
+from app.routes.analysis import router as analysis_router
 
 app = FastAPI(
     title="Advocate contract API",
@@ -31,3 +32,4 @@ async def root():
     }
 
 app.include_router(contracts_router)
+app.include_router(analysis_router)

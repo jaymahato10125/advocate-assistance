@@ -30,3 +30,5 @@ ALLOWED_EXTENSIONS = _parse_allowed_extensions(
     os.getenv("ALLOWED_EXTENSIONS", '[".pdf", ".txt"]')
 )
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "10"))  # Maximum file size in megabytes
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")

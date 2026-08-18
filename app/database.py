@@ -10,6 +10,13 @@ contracts_collection = db["contracts"]
 analysis_collection = db["analysis"]
 
 def init_db():
-    # Create indexes for the collections if they don't exist
-    contracts_collection.create_index("contract_id", unique=True)
-    analysis_collection.create_index("analysis_id", unique=True)
+    # Documents are identified by MongoDB's `_id`, which is uniquely indexed
+    # automatically. Drop the legacy unique indexes on the unused `contract_id`
+    # / `analysis_id` fields: a missing field is indexed as `null`, so a unique
+    # index rejects every insert after the first one (E11000 dup key: null).
+    for collection, index_name in (
+        (contracts_collection, "contract_id_1"),
+        (analysis_collection, "analysis_id_1"),
+    ):
+        if index_name in collection.index_information():
+            collection.drop_index(index_name)

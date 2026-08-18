@@ -84,7 +84,7 @@ The following routes are advertised in the root response but are not implemented
 - `GET /analysis/{analysis_id}` — Retrieve analysis results
 - `GET /analysis/contracts/{contract_id}` — List analysis results for a contract
 
-On startup, the application connects to MongoDB and creates unique indexes for `contract_id` and `analysis_id`.
+On startup, the application connects to MongoDB. Documents are identified by MongoDB's built-in `_id`; legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
 
 ## Troubleshooting
 
