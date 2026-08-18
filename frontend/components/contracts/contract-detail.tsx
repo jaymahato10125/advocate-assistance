@@ -13,8 +13,10 @@ import {
   LayoutDashboard,
   Loader2,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -25,19 +27,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCachedAnalysis } from "@/hooks/use-analysis";
-import { useContract } from "@/hooks/use-contracts";
+import { useContract, useDeleteContract } from "@/hooks/use-contracts";
 import { ApiError } from "@/lib/api-client";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
 
 export function ContractDetail({ id }: { id: string }) {
+  const router = useRouter();
   const { data: contract, isPending, isError, error, refetch, isRefetching } =
     useContract(id);
+  const deleteContract = useDeleteContract();
   const [tab, setTab] = useState("overview");
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   if (isPending) return <ContractDetailSkeleton />;
 
@@ -105,6 +119,61 @@ export function ContractDetail({ id }: { id: string }) {
             </span>
           </div>
         </div>
+        <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsDeleteOpen(true)}
+            disabled={deleteContract.isPending}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete contract
+          </Button>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete this contract?</DialogTitle>
+              <DialogDescription>
+                This permanently deletes “{contract.original_name}”, its stored
+                file, and any saved analysis. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" disabled={deleteContract.isPending}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button
+                variant="destructive"
+                onClick={() =>
+                  deleteContract.mutate(id, {
+                    onSuccess: () => {
+                      setIsDeleteOpen(false);
+                      toast.success("Contract deleted");
+                      router.push("/dashboard");
+                    },
+                    onError: (deleteError) => {
+                      toast.error("Could not delete contract", {
+                        description:
+                          deleteError instanceof ApiError
+                            ? deleteError.detail
+                            : "Something went wrong while deleting the contract.",
+                      });
+                    },
+                  })
+                }
+                disabled={deleteContract.isPending}
+              >
+                {deleteContract.isPending ? (
+                  <Loader2 className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Trash2 aria-hidden="true" />
+                )}
+                {deleteContract.isPending ? "Deleting…" : "Delete permanently"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mt-8">

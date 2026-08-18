@@ -29,19 +29,26 @@ async def analyze_contract(contract_id: str, text_content: str) -> AnalysisResul
     request_body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.3,
             "maxOutputTokens": 4096,
             "responseMimeType": "application/json",
         },
     }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            GEMINI_URL,
-            headers={"x-goog-api-key": api_key},
-            json=request_body,
-        )
-        response.raise_for_status()
+        try:
+            response = await client.post(
+                GEMINI_URL,
+                headers={"x-goog-api-key": api_key},
+                json=request_body,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text.strip().replace("\n", " ")
+            raise RuntimeError(
+                f"Gemini API returned HTTP {exc.response.status_code}: {detail[:1000]}"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise RuntimeError(f"Could not reach the Gemini API: {exc}") from exc
 
     try:
         response_data = response.json()

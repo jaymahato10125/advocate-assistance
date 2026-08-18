@@ -20,6 +20,27 @@ if not MONGODB_URI.startswith(("mongodb://", "mongodb+srv://")):
 
 UPLOADS_DIR = os.getenv("UPLOADS_DIR", "uploads")
 
+R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL", "").strip()
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "").strip()
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY", "").strip()
+
+_r2_is_configured = all(
+    (R2_ENDPOINT_URL, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
+)
+STORAGE_BACKEND = os.getenv(
+    "STORAGE_BACKEND", "r2" if _r2_is_configured else "local"
+).strip().lower()
+
+if STORAGE_BACKEND not in {"local", "r2"}:
+    raise RuntimeError("STORAGE_BACKEND must be either 'local' or 'r2'.")
+
+if STORAGE_BACKEND == "r2" and not _r2_is_configured:
+    raise RuntimeError(
+        "R2 storage is enabled but R2_ENDPOINT_URL, R2_BUCKET_NAME, "
+        "R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY are not all set."
+    )
+
 
 def _parse_allowed_extensions(value: str) -> list[str]:
     """Parse a JSON or comma-separated extension list from the environment."""

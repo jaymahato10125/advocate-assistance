@@ -7,7 +7,7 @@ export type ContractStatus = "uploaded" | "analyzing" | "analyzed" | "error";
 
 export interface Contract {
   id: string;
-  /** Stored (uuid) filename on the server. */
+  /** Storage key for the uploaded object. */
   filename: string;
   /** The uploader's original filename — the human-facing one. */
   original_name: string;

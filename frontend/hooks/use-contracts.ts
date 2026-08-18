@@ -39,3 +39,15 @@ export function useUploadContract() {
     },
   });
 }
+
+export function useDeleteContract() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.deleteContract(id),
+    onSuccess: (_, id) => {
+      queryClient.removeQueries({ queryKey: contractKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: contractKeys.all });
+    },
+  });
+}
