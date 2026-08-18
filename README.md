@@ -1,6 +1,6 @@
 # Advocate Contracts
 
-Advocate Contracts is a full-stack legal-tech app for uploading contracts (PDF/TXT), extracting their text, and analyzing them with Google Gemini (key clauses, severity-tagged risk flags, an overall risk level, and recommendations):
+Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations:
 
 - **Backend** (this directory, `app/`) — FastAPI + MongoDB API.
 - **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion).
@@ -67,6 +67,7 @@ The frontend uses:
 - **TanStack Query** for API queries and mutations.
 - **Framer Motion** for page reveals, result animations, and the risk gauge.
 - **react-dropzone** and **zod** for validated uploads.
+- Confirmation-based contract deletion with storage and analysis cleanup.
 - **sonner**, **lucide-react**, and **next-themes** for notifications, icons, and theme switching.
 
 Frontend-specific environment variables belong in `frontend/.env.local` (or
@@ -123,7 +124,7 @@ The implemented endpoints are:
 | `POST` | `/contracts/upload` | Upload a PDF or TXT contract; extracts and stores its text. |
 | `GET` | `/contracts/` | List uploaded contracts (without text content). |
 | `GET` | `/contracts/{id}` | Retrieve a contract by its MongoDB `_id`. |
-| `DELETE` | `/contracts/{id}` | Delete a contract, its stored file, and saved analyses. |
+| `DELETE` | `/contracts/{id}` | Permanently delete a contract, its stored file, and all saved analyses; returns `204 No Content`. |
 | `POST` | `/analysis/analyze/{contract_id}` | Analyze a contract with Gemini and store the result. |
 | `GET` | `/analysis/contracts/{contract_id}` | Retrieve the latest saved analysis for a contract. |
 | `GET` | `/analysis/{analysis_id}` | Retrieve a saved analysis by its MongoDB `_id`. |
@@ -132,7 +133,8 @@ The implemented endpoints are:
 
 1. `POST /contracts/upload` stores the file in private Cloudflare R2 when configured (or `UPLOADS_DIR` locally), extracts text (`pypdf` for PDFs), and stores a contract document with status `uploaded`.
 2. `POST /analysis/analyze/{contract_id}` sets the status to `analyzing`, sends the extracted text to Gemini with a structured legal-analysis prompt, and stores the parsed result (summary, contract type, key clauses, risk flags, overall risk level, recommendations) in the `analysis` collection. The contract status becomes `analyzed` on success or `error` on failure (the `502` response includes the underlying cause).
-3. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+3. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
+4. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
 
 ## Troubleshooting
 
@@ -140,6 +142,7 @@ The implemented endpoints are:
 - MongoDB connection errors: confirm your Atlas IP access list, database user, and `MONGODB_URI`.
 - Import errors: run `uvicorn app.main:app --reload` from the project root, not from inside `app/`.
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
+- Contract deletion returns `503`: verify the R2 endpoint, bucket name, and bucket-scoped API token in `.env`; the contract remains in MongoDB if its stored file cannot be deleted.
 - Analysis returns `502`: the response `detail` includes the underlying Gemini API cause. Gemini 3.6 Flash does not need a `temperature` parameter; keep the request compatible with the current Gemini API and verify the API key, quota, and model name.
 
 ## Project structure
@@ -153,13 +156,14 @@ The implemented endpoints are:
 │   ├── main.py                 # FastAPI application setup
 │   ├── models.py               # Pydantic models (Contact, AnalysisResult, ...)
 │   ├── routes/
-│   │   ├── contracts.py        # Upload / list / get contract endpoints
+│   │   ├── contracts.py        # Upload / list / get / delete contract endpoints
 │   │   └── analysis.py         # Gemini analysis endpoint
 │   ├── service/
 │   │   ├── document_parser.py  # PDF/TXT text extraction
 │   │   ├── gemini_analyse.py   # Gemini API client and response parsing
+│   │   ├── storage.py          # R2/local upload and deletion adapter
 │   │   └── prompt.py           # Analysis prompts
-│   └── uploads/                # Uploaded contract files
+├── uploads/                    # Local files when STORAGE_BACKEND=local
 ├── frontend/                   # Next.js 15 frontend
 │   ├── app/                    # App Router pages (marketing, dashboard)
 │   ├── components/             # UI, contract, and analysis components
