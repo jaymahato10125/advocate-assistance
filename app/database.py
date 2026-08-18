@@ -5,7 +5,7 @@ from app.config import MONGODB_DB_NAME, MONGODB_URI
 client = MongoClient(
     MONGODB_URI,
     serverSelectionTimeoutMS=5000,
-    appname="vakeel-contracts-api",
+    appname="advocate-contracts-api",
 )
 db = client[MONGODB_DB_NAME]
 

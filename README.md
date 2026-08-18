@@ -1,9 +1,9 @@
-# Vakeel Contracts
+# Advocate Contracts
 
-Vakeel Contracts is a full-stack legal-tech app for uploading contracts (PDF/TXT), extracting their text, and analyzing them with Google Gemini (key clauses, severity-tagged risk flags, an overall risk level, and recommendations):
+Advocate Contracts is a full-stack legal-tech app for uploading contracts (PDF/TXT), extracting their text, and analyzing them with Google Gemini (key clauses, severity-tagged risk flags, an overall risk level, and recommendations):
 
 - **Backend** (this directory, `app/`) — FastAPI + MongoDB API.
-- **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion). See [`frontend/README.md`](frontend/README.md) for details.
+- **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion).
 
 ## Requirements
 
@@ -57,6 +57,35 @@ npm run dev
 ```
 
 The frontend is available at <http://localhost:3000>. In development, it proxies `/api/*` to the FastAPI server at `http://127.0.0.1:8000/*`, so no CORS setup is needed—just start the backend first. For production, set `NEXT_PUBLIC_API_BASE_URL` to the deployed API origin (see `frontend/.env.example`).
+
+## Frontend
+
+The frontend uses:
+
+- **Next.js 15** (App Router) with strict TypeScript.
+- **Tailwind CSS v4** with shadcn/ui-style Radix primitives.
+- **TanStack Query** for API queries and mutations.
+- **Framer Motion** for page reveals, result animations, and the risk gauge.
+- **react-dropzone** and **zod** for validated uploads.
+- **sonner**, **lucide-react**, and **next-themes** for notifications, icons, and theme switching.
+
+Frontend-specific environment variables belong in `frontend/.env.local` (or
+`frontend/.env`):
+
+| Variable | Description |
+| --- | --- |
+| `NEXT_PUBLIC_API_BASE_URL` | Deployed FastAPI API origin. In development, leave it unset to use the `/api` proxy. |
+| `API_PROXY_TARGET` | Development proxy target; defaults to `http://127.0.0.1:8000`. |
+| `NEXT_PUBLIC_SITE_URL` | Public site URL used for metadata and sharing images. |
+
+The frontend mirrors the backend upload constraints in `frontend/lib/config.ts`.
+If `ALLOWED_EXTENSIONS` or `MAX_FILE_SIZE_MB` changes in the backend, update the
+frontend values as well.
+
+Analysis results are persisted in MongoDB and reloaded through
+`GET /analysis/contracts/{contract_id}`. The frontend also keeps the result in
+the TanStack Query cache for the current session. Authentication is not
+implemented yet; `frontend/lib/auth.ts` is the integration seam for adding it.
 
 ## Configuration
 
@@ -125,10 +154,12 @@ The implemented endpoints are:
 │   │   ├── gemini_analyse.py   # Gemini API client and response parsing
 │   │   └── prompt.py           # Analysis prompts
 │   └── uploads/                # Uploaded contract files
-├── frontend/                   # Next.js 15 frontend (see frontend/README.md)
+├── frontend/                   # Next.js 15 frontend
 │   ├── app/                    # App Router pages (marketing, dashboard)
-│   ├── components/             # UI components (shadcn/ui-style)
-│   ├── lib/                    # API client, config, validation
+│   ├── components/             # UI, contract, and analysis components
+│   ├── hooks/                  # TanStack Query hooks
+│   ├── lib/                    # API client, config, validation, auth seam
+│   ├── types/                  # Frontend API response types
 │   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
 ├── implement.md                # Build specification used for the frontend
 ├── requirements.txt            # Pinned Python dependencies

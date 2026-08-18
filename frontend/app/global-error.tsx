@@ -38,7 +38,7 @@ export default function GlobalError({
           Something went wrong
         </h1>
         <p style={{ color: "#8c96a4", margin: 0, maxWidth: "28rem", textAlign: "center" }}>
-          Vakeel Contracts hit an unexpected error. Retrying is safe — your
+          Advocate Contracts hit an unexpected error. Retrying is safe — your
           contracts are stored server-side.
         </p>
         <button

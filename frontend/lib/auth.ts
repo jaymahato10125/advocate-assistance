@@ -1,7 +1,7 @@
 /**
  * Auth seam — intentionally unused.
  *
- * The Vakeel Contracts API is a single-tenant internal tool with no auth.
+ * The Advocate Contracts API is a single-tenant internal tool with no auth.
  * When authentication is introduced, implement this module and inject
  * `getAuthHeaders()` into the fetch wrapper in lib/api-client.ts — no call
  * sites (hooks, components) should need to change.

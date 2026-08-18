@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Vakeel Contracts — AI contract review";
+export const alt = "Advocate Contracts — AI contract review";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -37,7 +37,7 @@ export default function OpenGraphImage() {
           ⚖
         </div>
         <div style={{ display: "flex", fontSize: 28, fontWeight: 600 }}>
-          <span>Vakeel</span>
+          <span>Advocate</span>
           <span style={{ color: "#8c96a4", fontWeight: 400, marginLeft: 10 }}>
             Contracts
           </span>

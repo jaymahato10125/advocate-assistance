@@ -19,12 +19,12 @@ import { Button } from "@/components/ui/button";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Vakeel Contracts — AI contract review",
+    title: "Advocate Contracts — AI contract review",
     description:
       "Upload a PDF or TXT contract and let Gemini read it like counsel: key clauses explained, risks flagged by severity, an overall risk level, and concrete recommendations.",
     alternates: { canonical: "/" },
     openGraph: {
-      title: "Vakeel Contracts — AI contract review",
+      title: "Advocate Contracts — AI contract review",
       description:
         "Key clauses, severity-tagged risk flags, an overall risk level, and recommendations — from a single upload.",
       type: "website",
@@ -67,7 +67,7 @@ function HeroSection() {
           </Reveal>
           <Reveal delay={0.16}>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Vakeel Contracts extracts the text from your PDF or TXT agreements
+              Advocate Contracts extracts the text from your PDF or TXT agreements
               and runs a structured Gemini analysis — surfacing key clauses,
               severity-tagged risk flags, an overall risk level, and concrete
               recommendations in seconds.
@@ -279,7 +279,7 @@ function FeaturesSection() {
             A second set of eyes that never gets tired
           </h2>
           <p className="mt-4 max-w-2xl text-muted-foreground">
-            Vakeel Contracts does the first pass on every agreement — the
+              Advocate Contracts does the first pass on every agreement — the
             tedious, error-prone read-through — so review time goes to the
             clauses that actually matter.
           </p>
@@ -342,7 +342,7 @@ function MarketingFooter() {
     <footer className="border-t border-border/60">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-center sm:flex-row sm:px-6 sm:text-left">
         <p className="font-display text-sm font-semibold">
-          Vakeel <span className="font-sans font-medium text-muted-foreground">Contracts</span>
+          Advocate <span className="font-sans font-medium text-muted-foreground">Contracts</span>
         </p>
         <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
           AI-assisted contract review powered by Google Gemini. Analysis

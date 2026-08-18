@@ -27,13 +27,13 @@ export function SiteHeader() {
         <Link
           href="/"
           className="flex items-center gap-2.5 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          aria-label="Vakeel Contracts — home"
+          aria-label="Advocate Contracts — home"
         >
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Scale className="size-4.5" aria-hidden="true" />
           </span>
           <span className="font-display text-lg leading-none font-semibold tracking-tight">
-            Vakeel
+            Advocate
             <span className="ml-1.5 font-sans text-sm font-medium text-muted-foreground">
               Contracts
             </span>

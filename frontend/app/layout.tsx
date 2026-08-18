@@ -31,12 +31,12 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: {
-    default: "Vakeel Contracts — AI contract review",
-    template: "%s · Vakeel Contracts",
+    default: "Advocate Contracts — AI contract review",
+    template: "%s · Advocate Contracts",
   },
   description:
     "Upload PDF or TXT contracts, extract their text, and analyze them with Google Gemini — key clauses, severity-tagged risk flags, an overall risk level, and recommendations.",
-  applicationName: "Vakeel Contracts",
+  applicationName: "Advocate Contracts",
   keywords: [
     "contract analysis",
     "legal tech",
@@ -62,4 +62,3 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     </html>
   );
 }
-

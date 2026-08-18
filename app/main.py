@@ -19,7 +19,7 @@ async def startup_event():
 @app.get("/")   
 async def root():
     return {
-        "app": "Vakeel Contracts API",
+        "app": "Advocate Contracts API",
         "version": "1.0.0",
         "endpoints": {
             "POST /contracts/upload": "Upload a contract for analysis (PDF, TXT)",

@@ -1,5 +1,5 @@
 /**
- * Types mirroring the Vakeel Contracts API (FastAPI) response shapes.
+ * Types mirroring the Advocate Contracts API (FastAPI) response shapes.
  * Verified against app/models.py and app/routes/*.
  */
 
