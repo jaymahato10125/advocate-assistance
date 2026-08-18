@@ -5,7 +5,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "mydb").strip() or "mydb"
+
+if not MONGODB_URI:
+    raise RuntimeError(
+        "MONGODB_URI is required. Set it to a mongodb:// or mongodb+srv:// connection string."
+    )
+
+if not MONGODB_URI.startswith(("mongodb://", "mongodb+srv://")):
+    raise RuntimeError(
+        "MONGODB_URI must start with mongodb:// or mongodb+srv://."
+    )
+
 UPLOADS_DIR = os.getenv("UPLOADS_DIR", "uploads")
 
 

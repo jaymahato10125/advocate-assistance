@@ -1,9 +1,13 @@
 from pymongo import MongoClient
 
-from app.config import MONGODB_URI
+from app.config import MONGODB_DB_NAME, MONGODB_URI
 
-client = MongoClient(MONGODB_URI)
-db = client["mydb"]  # Get the default database from the URI
+client = MongoClient(
+    MONGODB_URI,
+    serverSelectionTimeoutMS=5000,
+    appname="vakeel-contracts-api",
+)
+db = client[MONGODB_DB_NAME]
 
 # Collections
 contracts_collection = db["contracts"]

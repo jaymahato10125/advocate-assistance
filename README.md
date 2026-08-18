@@ -9,7 +9,7 @@ Vakeel Contracts is a full-stack legal-tech app for uploading contracts (PDF/TXT
 
 - Python 3.10+ and `pip`
 - Node.js 18.18+ and `npm` (for the frontend)
-- Docker Desktop with Docker Compose, or a local MongoDB installation
+- A MongoDB Atlas cluster
 
 ## Quick start
 
@@ -30,15 +30,15 @@ On Windows, activate the environment with:
 Create a `.env` file in the project root:
 
 ```env
-MONGODB_URI=mongodb://root:mypassword@localhost:27017
+MONGODB_URI=mongodb+srv://USERNAME:PASSWORD@YOUR_CLUSTER.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB_NAME=mydb
 GEMINI_API_KEY=your-google-ai-studio-api-key
 ```
 
-Start MongoDB with the included Docker Compose configuration:
-
-```bash
-docker compose up -d mongo
-```
+For MongoDB Atlas, create a database user, allow the API server's IP address in
+Atlas **Network Access**, and replace the placeholders in `MONGODB_URI`. If the
+username or password contains characters such as `@`, `:`, `/`, or `#`, URL-encode
+them before putting them in the connection string. Do not commit `.env`.
 
 Start the API from the project root—the directory containing `app/`:
 
@@ -64,20 +64,13 @@ The application reads configuration from `.env` using `python-dotenv`:
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `MONGODB_URI` | Yes | — | MongoDB connection string. It must start with `mongodb://` or `mongodb+srv://`. |
+| `MONGODB_URI` | Yes | — | MongoDB connection string. Atlas uses a `mongodb+srv://` URI. |
+| `MONGODB_DB_NAME` | No | `mydb` | Database name used by the API. |
 | `GEMINI_API_KEY` | Yes (for analysis) | — | Google AI Studio API key. `GOOGLE_API_KEY` is accepted as a fallback. |
 | `GEMINI_MODEL` | No | `gemini-3.6-flash` | Gemini model used for analysis. Older models (`gemini-2.0-flash`, `gemini-2.5-flash`) are retired by Google and return `404`. |
 | `UPLOADS_DIR` | No | `uploads` | Directory where uploaded files are stored. |
 | `ALLOWED_EXTENSIONS` | No | `[".pdf", ".txt"]` | Allowed upload extensions (JSON array or comma-separated). |
 | `MAX_FILE_SIZE_MB` | No | `10` | Maximum upload size in megabytes. |
-
-The included Compose file uses the development credentials `root` / `mypassword`, exposes MongoDB on port `27017`, and stores its data in a named Docker volume.
-
-Stop the MongoDB container with:
-
-```bash
-docker compose down
-```
 
 ## API documentation
 
@@ -112,7 +105,7 @@ Not implemented yet:
 ## Troubleshooting
 
 - `Invalid URI scheme`: check that `MONGODB_URI` starts with `mongodb://` or `mongodb+srv://`.
-- MongoDB connection errors: confirm that the MongoDB container is running with `docker compose ps`.
+- MongoDB connection errors: confirm your Atlas IP access list, database user, and `MONGODB_URI`.
 - Import errors: run `uvicorn app.main:app --reload` from the project root, not from inside `app/`.
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
 - Analysis returns `502`: the response `detail` now includes the underlying cause. A `404` from the Gemini API means the configured `GEMINI_MODEL` has been retired — check the current model name in Google AI Studio docs and update `GEMINI_MODEL`.
@@ -140,7 +133,6 @@ Not implemented yet:
 │   ├── components/             # UI components (shadcn/ui-style)
 │   ├── lib/                    # API client, config, validation
 │   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
-├── docker-compose.yml          # Local MongoDB service
 ├── implement.md                # Build specification used for the frontend
 ├── requirements.txt            # Pinned Python dependencies
 └── README.md
