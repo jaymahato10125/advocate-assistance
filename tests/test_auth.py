@@ -1,4 +1,4 @@
-"""Tests for Clerk authentication (app/auth.py) and route protection.
+"""Tests for Clerk authentication (backend/auth.py) and route protection.
 
 No real Clerk tokens or network calls: the SDK client is replaced with a stub,
 and `TestClient` is used without the lifespan context manager so startup
@@ -11,9 +11,9 @@ import pytest
 from clerk_backend_api.security.types import AuthStatus, RequestState
 from fastapi.testclient import TestClient
 
-import app.auth as auth_module
-from app.auth import DEV_USER_ID, ClerkUser, get_current_user, owner_filter
-from app.main import app
+import backend.auth as auth_module
+from backend.auth import DEV_USER_ID, ClerkUser, get_current_user, owner_filter
+from backend.main import app
 
 VALID_OBJECT_ID = "a" * 24
 
@@ -130,7 +130,7 @@ class _FakeContractsCollection:
 
 def test_list_contracts_scoped_to_caller(client, monkeypatch):
     fake = _FakeContractsCollection()
-    monkeypatch.setattr("app.routes.contracts.contracts_collection", fake)
+    monkeypatch.setattr("backend.routes.contracts.contracts_collection", fake)
     app.dependency_overrides[get_current_user] = lambda: ClerkUser(user_id="user_abc")
     try:
         response = client.get("/contracts/")
@@ -143,7 +143,7 @@ def test_list_contracts_scoped_to_caller(client, monkeypatch):
 
 def test_get_contract_from_other_user_returns_404(client, monkeypatch):
     fake = _FakeContractsCollection()
-    monkeypatch.setattr("app.routes.contracts.contracts_collection", fake)
+    monkeypatch.setattr("backend.routes.contracts.contracts_collection", fake)
     app.dependency_overrides[get_current_user] = lambda: ClerkUser(user_id="user_abc")
     try:
         response = client.get(f"/contracts/{VALID_OBJECT_ID}")
@@ -156,7 +156,7 @@ def test_get_contract_from_other_user_returns_404(client, monkeypatch):
 def test_auth_disabled_keeps_legacy_unfiltered_behavior(client, monkeypatch):
     monkeypatch.setattr(auth_module, "AUTH_DISABLED", True)
     fake = _FakeContractsCollection()
-    monkeypatch.setattr("app.routes.contracts.contracts_collection", fake)
+    monkeypatch.setattr("backend.routes.contracts.contracts_collection", fake)
     response = client.get("/contracts/")
     assert response.status_code == 200
     assert fake.find_filter == {}

@@ -3,12 +3,12 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 import os
 import tempfile
 import uuid
-from app.models import Contact
-from app.auth import ClerkUser, get_current_user, owner_filter
-from app.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
-from app.service.document_parser import extract_text
-from app.service.storage import StorageError, delete_upload, save_upload
-from app.database import analysis_collection, contracts_collection
+from backend.models import Contact
+from backend.auth import ClerkUser, get_current_user, owner_filter
+from backend.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
+from backend.service.document_parser import extract_text
+from backend.service.storage import StorageError, delete_upload, save_upload
+from backend.database import analysis_collection, contracts_collection
 
 router = APIRouter(
     prefix="/contracts",

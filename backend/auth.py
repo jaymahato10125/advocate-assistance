@@ -13,7 +13,7 @@ from clerk_backend_api import Clerk
 from clerk_backend_api.security.types import AuthenticateRequestOptions
 from fastapi import HTTPException, Request
 
-from app.config import AUTH_DISABLED, CLERK_AUTHORIZED_PARTIES, CLERK_SECRET_KEY
+from backend.config import AUTH_DISABLED, CLERK_AUTHORIZED_PARTIES, CLERK_SECRET_KEY
 
 logger = logging.getLogger(__name__)
 

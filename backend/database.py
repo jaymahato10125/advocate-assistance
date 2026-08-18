@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 
-from app.config import MONGODB_DB_NAME, MONGODB_URI
+from backend.config import MONGODB_DB_NAME, MONGODB_URI
 
 client = MongoClient(
     MONGODB_URI,

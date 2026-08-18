@@ -1,11 +1,11 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth import ClerkUser, get_current_user, owner_filter
-from app.config import GEMINI_API_KEY
-from app.database import analysis_collection, contracts_collection
-from app.models import AnalysisResult
-from app.service.gemini_analyse import analyze_contract as analyze_contract_service
+from backend.auth import ClerkUser, get_current_user, owner_filter
+from backend.config import GEMINI_API_KEY
+from backend.database import analysis_collection, contracts_collection
+from backend.models import AnalysisResult
+from backend.service.gemini_analyse import analyze_contract as analyze_contract_service
 
 router = APIRouter(
     prefix="/analysis",

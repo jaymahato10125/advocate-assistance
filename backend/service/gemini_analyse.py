@@ -3,9 +3,9 @@ import os
 
 import httpx
 
-from app.config import GEMINI_API_KEY
-from app.models import AnalysisResult, ClauseAnalysis, RiskFlag, RiskLevel
-from app.service.prompt import CONTRACT_ANALYSIS_PROMPT
+from backend.config import GEMINI_API_KEY
+from backend.models import AnalysisResult, ClauseAnalysis, RiskFlag, RiskLevel
+from backend.service.prompt import CONTRACT_ANALYSIS_PROMPT
 
 
 # Note: older models (gemini-2.0-flash, gemini-2.5-flash) are retired for this

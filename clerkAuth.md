@@ -1,6 +1,6 @@
 # Clerk Authentication — Implementation Plan
 
-Status: **Implemented** · Scope: FastAPI backend (`app/`) + Next.js 15 frontend (`frontend/`)
+Status: **Implemented** · Scope: FastAPI backend (`backend/`) + Next.js 15 frontend (`frontend/`)
 
 > Implemented with `@clerk/nextjs` v7 (Core 3): `<Show when="signed-in|out">`
 > replaces the removed `<SignedIn>`/`<SignedOut>` components, and `UserButton`
@@ -140,7 +140,7 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
   endpoint (`https://<clerk-frontend-api>/.well-known/jwks.json`). Same claims
   checks either way — pick the SDK unless it conflicts with pinned deps.
 
-### 5.2 Config — `app/config.py` (follow existing env-validation pattern)
+### 5.2 Config — `backend/config.py` (follow existing env-validation pattern)
 
 ```python
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY", "").strip()
@@ -154,7 +154,7 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
     raise RuntimeError("CLERK_SECRET_KEY is required (or set AUTH_DISABLED=true for local dev).")
 ```
 
-### 5.3 New `app/auth.py` — FastAPI dependency
+### 5.3 New `backend/auth.py` — FastAPI dependency
 
 - `ClerkUser` model: `user_id` (JWT `sub`), `session_id`, `claims: dict`.
 - `get_current_user(request: Request) -> ClerkUser`:
@@ -167,11 +167,11 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
      the existing error-handling convention.
   4. Return `ClerkUser` from the verified token payload.
 - Instantiate the Clerk SDK client once at module level (like the Mongo client
-  in `app/database.py`), not per request.
+  in `backend/database.py`), not per request.
 
 ### 5.4 Protect routes
 
-- `app/routes/contracts.py` and `app/routes/analysis.py`: add
+- `backend/routes/contracts.py` and `backend/routes/analysis.py`: add
   `dependencies=[Depends(get_current_user)]` to each `APIRouter(...)`, and inject
   `user: ClerkUser = Depends(get_current_user)` into handlers that need the id
   (Phase 3). Router-level dependency = no route is accidentally left public.
@@ -179,7 +179,7 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
 
 ### 5.5 CORS (production only, but configure now)
 
-- Add `CORSMiddleware` in `app/main.py` driven by `CORS_ORIGINS` env
+- Add `CORSMiddleware` in `backend/main.py` driven by `CORS_ORIGINS` env
   (JSON/CSV list, default `["http://localhost:3000"]`), with
   `allow_headers=["Authorization", "Content-Type"]`. In dev the Next proxy makes
   this a no-op; in production the browser calls the API directly with a Bearer
@@ -187,7 +187,7 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
 
 ## 6. Phase 3 — User-Scoped Data (multi-tenancy)
 
-1. **`app/models.py`**: add `owner_id: str = ""` to `Contact` (Clerk user id).
+1. **`backend/models.py`**: add `owner_id: str = ""` to `Contact` (Clerk user id).
    Analysis documents inherit ownership through their parent contract — no
    schema change needed on `AnalysisResult`.
 2. **Upload** (`POST /contracts/upload`): set `owner_id=user.user_id`.
@@ -199,7 +199,7 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
    before analyzing or returning results (`/analysis/analyze/{id}`,
    `/analysis/contracts/{contract_id}`). `/analysis/{analysis_id}` must join
    back to its contract for the ownership check.
-6. **`app/database.py` `init_db()`**: create a non-unique index on
+6. **`backend/database.py` `init_db()`**: create a non-unique index on
    `contracts.owner_id` alongside the existing legacy-index cleanup.
 7. **Migration of existing documents**: current documents have no `owner_id`.
    One-off script (or mongo shell) to backfill `owner_id` to a chosen Clerk
@@ -214,7 +214,7 @@ if not AUTH_DISABLED and not CLERK_SECRET_KEY:
 Not required for MVP (ownership is keyed by Clerk user id, no local user table).
 Add only if we later need profile data offline or cleanup on account deletion:
 
-- `POST /webhooks/clerk` in a new `app/routes/webhooks.py`, verifying the
+  - `POST /webhooks/clerk` in a new `backend/routes/webhooks.py`, verifying the
   signature with the `svix` package against `CLERK_WEBHOOK_SIGNING_SECRET`.
 - Handle `user.deleted` → delete that user's contracts, analyses, and R2 files
   (reuse the existing `delete_upload` service). This route stays **outside** the
@@ -260,12 +260,12 @@ Add only if we later need profile data offline or cleanup on account deletion:
 | `frontend/lib/api-client.ts` | Await auth headers in `request()` + XHR upload; 401 handling |
 | `requirements.txt` | Add `clerk-backend-api` (or `PyJWT[crypto]`) |
 | `.env.example` | Add backend Clerk vars |
-| `app/config.py` | Clerk config + `AUTH_DISABLED` + `CORS_ORIGINS` |
-| `app/auth.py` | **Create** — `get_current_user` dependency |
-| `app/main.py` | Add `CORSMiddleware` |
-| `app/routes/contracts.py`, `app/routes/analysis.py` | Router-level auth dependency + owner scoping |
-| `app/models.py` | `Contact.owner_id` |
-| `app/database.py` | Index on `owner_id` |
+| `backend/config.py` | Clerk config + `AUTH_DISABLED` + `CORS_ORIGINS` |
+| `backend/auth.py` | **Create** — `get_current_user` dependency |
+| `backend/main.py` | Add `CORSMiddleware` |
+| `backend/routes/contracts.py`, `backend/routes/analysis.py` | Router-level auth dependency + owner scoping |
+| `backend/models.py` | `Contact.owner_id` |
+| `backend/database.py` | Index on `owner_id` |
 | `README.md` | Auth setup docs |
 
 ## 11. Security Notes
@@ -288,4 +288,3 @@ Add only if we later need profile data offline or cleanup on account deletion:
    (tests/docs). Phase 4 (webhooks) any time after launch.
 2. Between Phase 2 and 3 the API is authenticated but data is still shared —
    acceptable briefly in dev, **do not deploy to production in that state**.
-

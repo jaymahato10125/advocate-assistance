@@ -1,6 +1,6 @@
-"""Pytest configuration — sets the environment before any app module imports.
+"""Pytest configuration — sets the environment before any backend module imports.
 
-app.config validates env vars at import time, so these must be set here first.
+backend.config validates env vars at import time, so these must be set here first.
 load_dotenv() never overrides variables that are already set, so the real .env
 cannot leak into tests. MongoDB is never contacted: TestClient is used without
 the lifespan context (startup events don't run) and tests replace collections

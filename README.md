@@ -2,7 +2,7 @@
 
 Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations:
 
-- **Backend** (this directory, `app/`) — FastAPI + MongoDB API.
+- **Backend** (this directory, `backend/`) — FastAPI + MongoDB API.
 - **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion).
 
 ## Requirements
@@ -40,10 +40,10 @@ Atlas **Network Access**, and replace the placeholders in `MONGODB_URI`. If the
 username or password contains characters such as `@`, `:`, `/`, or `#`, URL-encode
 them before putting them in the connection string. Do not commit `.env`.
 
-Start the API from the project root—the directory containing `app/`:
+Start the API from the project root—the directory containing `backend/`:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 The API is available at <http://127.0.0.1:8000>.
@@ -96,7 +96,7 @@ The app uses [Clerk](https://clerk.com) for authentication. Next.js middleware
 (`frontend/middleware.ts`) protects `/dashboard/*`, and the browser attaches a
 Clerk session token (`Authorization: Bearer <token>`) to every API call through
 `frontend/lib/auth.ts`. The FastAPI backend verifies the token with the Clerk
-Python SDK (`app/auth.py`) and scopes every contract and analysis to its
+Python SDK (`backend/auth.py`) and scopes every contract and analysis to its
 owner's Clerk user id — users only ever see their own documents.
 
 To enable it: create a Clerk application, set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
@@ -164,7 +164,7 @@ as `Authorization: Bearer <token>`):
 
 - `Invalid URI scheme`: check that `MONGODB_URI` starts with `mongodb://` or `mongodb+srv://`.
 - MongoDB connection errors: confirm your Atlas IP access list, database user, and `MONGODB_URI`.
-- Import errors: run `uvicorn app.main:app --reload` from the project root, not from inside `app/`.
+- Import errors: run `uvicorn backend.main:app --reload` from the project root, not from inside `backend/`.
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
 - Contract deletion returns `503`: verify the R2 endpoint, bucket name, and bucket-scoped API token in `.env`; the contract remains in MongoDB if its stored file cannot be deleted.
 - Analysis returns `502`: the response `detail` includes the underlying Gemini API cause. Gemini 3.6 Flash does not need a `temperature` parameter; keep the request compatible with the current Gemini API and verify the API key, quota, and model name.
@@ -174,7 +174,7 @@ as `Authorization: Bearer <token>`):
 
 ```text
 .
-├── app/                        # FastAPI backend
+├── backend/                    # FastAPI backend
 │   ├── __init__.py             # Python package marker
 │   ├── auth.py                 # Clerk session-token verification (get_current_user)
 │   ├── config.py               # Environment configuration

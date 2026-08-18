@@ -3,11 +3,11 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import AUTH_DISABLED, CORS_ORIGINS
-from app.database import init_db
+from backend.config import AUTH_DISABLED, CORS_ORIGINS
+from backend.database import init_db
 
-from app.routes.contracts import router as contracts_router
-from app.routes.analysis import router as analysis_router
+from backend.routes.contracts import router as contracts_router
+from backend.routes.analysis import router as analysis_router
 
 logger = logging.getLogger(__name__)
 
