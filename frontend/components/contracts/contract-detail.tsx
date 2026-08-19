@@ -15,9 +15,10 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AnalysisPanel } from "@/components/analysis/analysis-panel";
@@ -39,7 +40,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCachedAnalysis } from "@/hooks/use-analysis";
+import { analysisKeys, useCachedAnalysis } from "@/hooks/use-analysis";
 import { useContract, useDeleteContract } from "@/hooks/use-contracts";
 import { ApiError } from "@/lib/api-client";
 import { formatDateTime, formatNumber } from "@/lib/utils";
@@ -94,6 +95,7 @@ export function ContractDetail({ id }: { id: string }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <BackLink />
+      <AnalysisStatusWatcher contract={contract} />
 
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
@@ -201,6 +203,39 @@ export function ContractDetail({ id }: { id: string }) {
       </Tabs>
     </div>
   );
+}
+
+/**
+ * Watches the polled contract status for a finished background analysis.
+ * Lives at the detail-page level (not in AnalysisPanel) so the completion
+ * toast and cache refresh fire even if the user switches tabs mid-run.
+ */
+function AnalysisStatusWatcher({ contract }: { contract: Contract }) {
+  const queryClient = useQueryClient();
+  const previousStatus = useRef(contract.status);
+
+  useEffect(() => {
+    const previous = previousStatus.current;
+    previousStatus.current = contract.status;
+    if (previous !== "analyzing") return;
+
+    if (contract.status === "analyzed") {
+      // The report is saved by now — pull it into the cache and celebrate.
+      void queryClient.invalidateQueries({
+        queryKey: analysisKeys.byContract(contract.id),
+      });
+      toast.success("Analysis complete", {
+        description: "Key clauses, risk flags, and recommendations are ready.",
+      });
+    } else if (contract.status === "error") {
+      toast.error("Analysis failed", {
+        description:
+          "Gemini could not finish analyzing this contract. Please try again.",
+      });
+    }
+  }, [contract.status, contract.id, queryClient]);
+
+  return null;
 }
 
 function BackLink() {

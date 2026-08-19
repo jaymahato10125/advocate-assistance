@@ -57,9 +57,13 @@ export interface AnalysisResult {
   recommendations: string[];
 }
 
-/** POST /analysis/analyze/{contract_id} response. */
+/**
+ * POST /analysis/analyze/{contract_id} response (202 Accepted).
+ * Analysis runs server-side as a background task — the saved result is
+ * fetched via GET /analysis/contracts/{contract_id} once the contract
+ * status flips to "analyzed".
+ */
 export interface AnalyzeContractResponse {
   message: string;
-  analysis: AnalysisResult;
-  id: string;
+  status: ContractStatus;
 }

@@ -29,20 +29,23 @@ const staggerItem: Variants = {
 };
 
 /**
- * Analysis results are loaded from the API and cached client-side for the
- * current session. A POST analysis response updates the same query cache.
+ * Analysis runs as a server-side background task: POSTing returns 202 at
+ * once, then this panel tracks the contract status (polled by useContract)
+ * and polls for the saved analysis until it lands — so slow, large-contract
+ * runs resolve into results instead of a dropped-request "failure".
  */
 export function AnalysisPanel({ contract }: { contract: Contract }) {
-  const { data: cached } = useCachedAnalysis(contract.id);
   const analyze = useAnalyzeContract(contract.id);
+  const isRunning = analyze.isPending || contract.status === "analyzing";
+  const { data: cached } = useCachedAnalysis(contract.id, isRunning);
 
   useEffect(() => {
     if (analyze.isError) {
-      toast.error("Analysis failed", {
+      toast.error("Could not start analysis", {
         description:
           analyze.error instanceof ApiError
             ? analyze.error.detail
-            : "Something went wrong while running the analysis.",
+            : "Something went wrong while starting the analysis.",
       });
     }
   }, [analyze.isError, analyze.error]);
@@ -50,15 +53,20 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
   const runAnalysis = () => {
     analyze.mutate(undefined, {
       onSuccess: () =>
-        toast.success("Analysis complete", {
-          description: "Key clauses, risk flags, and recommendations are ready.",
+        toast.info("Analysis started", {
+          description:
+            "Gemini is reading the contract — large files can take a few minutes.",
         }),
     });
   };
 
+  const showFailure =
+    !isRunning &&
+    (analyze.isError || (contract.status === "error" && !cached));
+
   return (
     <div className="space-y-6">
-      {analyze.isError ? (
+      {showFailure ? (
         <div
           role="alert"
           className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.06] p-4"
@@ -74,7 +82,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             <p className="mt-1 text-sm break-words text-muted-foreground">
               {analyze.error instanceof ApiError
                 ? analyze.error.detail
-                : "Something went wrong while running the analysis."}
+                : "Gemini could not finish analyzing this contract. Please try again."}
             </p>
           </div>
           <Button
@@ -82,7 +90,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             size="sm"
             className="shrink-0"
             onClick={runAnalysis}
-            disabled={analyze.isPending}
+            disabled={isRunning}
           >
             <RefreshCw aria-hidden="true" />
             Retry
@@ -90,7 +98,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
         </div>
       ) : null}
 
-      {analyze.isPending ? (
+      {isRunning && !cached ? (
         <AnalysisInProgress />
       ) : cached ? (
         <motion.div
@@ -185,7 +193,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
               : "Run a Gemini analysis to surface the summary, key clauses, severity-tagged risk flags, and recommendations for this contract."
           }
           action={
-            <Button size="lg" onClick={runAnalysis}>
+            <Button size="lg" onClick={runAnalysis} disabled={isRunning}>
               <Sparkles aria-hidden="true" />
               Analyze with Gemini
             </Button>
@@ -202,7 +210,8 @@ function AnalysisInProgress() {
     <div className="space-y-6" aria-live="polite" aria-busy="true">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Sparkles className="size-4 animate-pulse-soft text-primary" aria-hidden="true" />
-        Gemini is reading the contract — this can take up to a minute…
+        Gemini is reading the contract — large files can take a few minutes. The
+        report will appear here on its own, even if you leave this page.
       </p>
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="lg:col-span-3">

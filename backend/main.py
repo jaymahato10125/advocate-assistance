@@ -48,7 +48,7 @@ async def root():
             "POST /contracts/upload": "Upload a contract for analysis (PDF, TXT)",
             "GET /contracts/": "Retrieve a list of all uploaded contracts",
             "GET /contracts/{id}": "Retrieve a specific contract by ID",
-            "POST /analysis/analyze/{contract_id}": "Analyze a specific contract by ID"
+            "POST /analysis/analyze/{contract_id}": "Start background analysis of a contract (202; poll the contract status, then GET /analysis/contracts/{contract_id})"
         }
     }
 
