@@ -1,8 +1,8 @@
 "use client";
 
 import { motion, type Variants } from "framer-motion";
-import { ListChecks, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
-import { useEffect } from "react";
+import { Download, FileWarning, ListChecks, Loader2, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { KeyClauseList } from "@/components/analysis/key-clause-list";
@@ -12,10 +12,19 @@ import { RiskGauge } from "@/components/analysis/risk-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAnalyzeContract, useCachedAnalysis } from "@/hooks/use-analysis";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, api, type ReportFormat } from "@/lib/api-client";
+import { formatDateTime } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
 
 const staggerContainer: Variants = {
@@ -29,20 +38,23 @@ const staggerItem: Variants = {
 };
 
 /**
- * Analysis results are loaded from the API and cached client-side for the
- * current session. A POST analysis response updates the same query cache.
+ * Analysis runs as a server-side background task: POSTing returns 202 at
+ * once, then this panel tracks the contract status (polled by useContract)
+ * and polls for the saved analysis until it lands — so slow, large-contract
+ * runs resolve into results instead of a dropped-request "failure".
  */
 export function AnalysisPanel({ contract }: { contract: Contract }) {
-  const { data: cached } = useCachedAnalysis(contract.id);
   const analyze = useAnalyzeContract(contract.id);
+  const isRunning = analyze.isPending || contract.status === "analyzing";
+  const { data: cached } = useCachedAnalysis(contract.id, isRunning);
 
   useEffect(() => {
     if (analyze.isError) {
-      toast.error("Analysis failed", {
+      toast.error("Could not start analysis", {
         description:
           analyze.error instanceof ApiError
             ? analyze.error.detail
-            : "Something went wrong while running the analysis.",
+            : "Something went wrong while starting the analysis.",
       });
     }
   }, [analyze.isError, analyze.error]);
@@ -50,15 +62,38 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
   const runAnalysis = () => {
     analyze.mutate(undefined, {
       onSuccess: () =>
-        toast.success("Analysis complete", {
-          description: "Key clauses, risk flags, and recommendations are ready.",
+        toast.info("Analysis started", {
+          description:
+            "Gemini is reading the contract — large files can take a few minutes.",
         }),
     });
   };
 
+  const [downloading, setDownloading] = useState<ReportFormat | null>(null);
+
+  const downloadReport = async (format: ReportFormat) => {
+    setDownloading(format);
+    try {
+      await api.downloadAnalysisReport(contract.id, format);
+    } catch (error) {
+      toast.error("Download failed", {
+        description:
+          error instanceof ApiError
+            ? error.detail
+            : "Something went wrong while preparing the report.",
+      });
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const showFailure =
+    !isRunning &&
+    (analyze.isError || (contract.status === "error" && !cached));
+
   return (
     <div className="space-y-6">
-      {analyze.isError ? (
+      {showFailure ? (
         <div
           role="alert"
           className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/[0.06] p-4"
@@ -74,7 +109,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             <p className="mt-1 text-sm break-words text-muted-foreground">
               {analyze.error instanceof ApiError
                 ? analyze.error.detail
-                : "Something went wrong while running the analysis."}
+                : "Gemini could not finish analyzing this contract. Please try again."}
             </p>
           </div>
           <Button
@@ -82,7 +117,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             size="sm"
             className="shrink-0"
             onClick={runAnalysis}
-            disabled={analyze.isPending}
+            disabled={isRunning}
           >
             <RefreshCw aria-hidden="true" />
             Retry
@@ -90,7 +125,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
         </div>
       ) : null}
 
-      {analyze.isPending ? (
+      {isRunning && !cached ? (
         <AnalysisInProgress />
       ) : cached ? (
         <motion.div
@@ -100,6 +135,44 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
           animate="show"
           className="space-y-6"
         >
+          <motion.div
+            variants={staggerItem}
+            className="flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm text-muted-foreground">
+              Analyzed {formatDateTime(cached.analysis_date)} ·{" "}
+              {cached.key_clauses.length} clauses · {cached.risk_flags.length}{" "}
+              risk flags
+            </p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={downloading !== null}>
+                  {downloading !== null ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download aria-hidden="true" />
+                  )}
+                  {downloading !== null
+                    ? `Preparing ${downloading.toUpperCase()}…`
+                    : "Download report"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Download as</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => downloadReport("pdf")}>
+                  PDF document (.pdf)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadReport("doc")}>
+                  Word document (.doc)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadReport("txt")}>
+                  Plain text (.txt)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </motion.div>
+
           <div className="grid gap-6 lg:grid-cols-5">
             <motion.div variants={staggerItem} className="lg:col-span-3">
               <Card className="h-full">
@@ -175,6 +248,18 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             </Card>
           </motion.div>
         </motion.div>
+      ) : contract.status === "not_a_contract" ? (
+        <EmptyState
+          icon={FileWarning}
+          title="This doesn't look like a legal contract"
+          description="Gemini reviewed the document and it doesn't appear to be a contract or agreement, so no analysis was generated. If you uploaded the wrong file, delete it and upload the contract instead. If you think this is a mistake, you can run the analysis again."
+          action={
+            <Button variant="outline" onClick={runAnalysis} disabled={isRunning}>
+              <RefreshCw aria-hidden="true" />
+              Run analysis again
+            </Button>
+          }
+        />
       ) : (
         <EmptyState
           icon={Sparkles}
@@ -185,7 +270,7 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
               : "Run a Gemini analysis to surface the summary, key clauses, severity-tagged risk flags, and recommendations for this contract."
           }
           action={
-            <Button size="lg" onClick={runAnalysis}>
+            <Button size="lg" onClick={runAnalysis} disabled={isRunning}>
               <Sparkles aria-hidden="true" />
               Analyze with Gemini
             </Button>
@@ -202,7 +287,8 @@ function AnalysisInProgress() {
     <div className="space-y-6" aria-live="polite" aria-busy="true">
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <Sparkles className="size-4 animate-pulse-soft text-primary" aria-hidden="true" />
-        Gemini is reading the contract — this can take up to a minute…
+        Gemini is reading the contract — large files can take a few minutes. The
+        report will appear here on its own, even if you leave this page.
       </p>
       <div className="grid gap-6 lg:grid-cols-5">
         <Card className="lg:col-span-3">

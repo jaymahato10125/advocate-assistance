@@ -152,7 +152,7 @@ export function ContractsView() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(["all", "uploaded", "analyzing", "analyzed", "error"] as const).map(
+              {(["all", "uploaded", "analyzing", "analyzed", "not_a_contract", "error"] as const).map(
                 (status) => (
                   <DropdownMenuItem
                     key={status}
@@ -358,7 +358,9 @@ function StatsRow({
     },
     {
       label: "Errors",
-      value: contracts?.filter((c) => c.status === "error").length,
+      value: contracts?.filter(
+        (c) => c.status === "error" || c.status === "not_a_contract",
+      ).length,
       icon: AlertCircle,
       iconClass: "bg-destructive/10 text-destructive dark:text-risk-critical",
     },

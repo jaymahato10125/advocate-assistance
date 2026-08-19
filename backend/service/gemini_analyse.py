@@ -3,9 +3,9 @@ import os
 
 import httpx
 
-from app.config import GEMINI_API_KEY
-from app.models import AnalysisResult, ClauseAnalysis, RiskFlag, RiskLevel
-from app.service.prompt import CONTRACT_ANALYSIS_PROMPT
+from backend.config import GEMINI_API_KEY
+from backend.models import AnalysisResult, ClauseAnalysis, RiskFlag, RiskLevel
+from backend.service.prompt import CONTRACT_ANALYSIS_PROMPT
 
 
 # Note: older models (gemini-2.0-flash, gemini-2.5-flash) are retired for this
@@ -15,6 +15,10 @@ GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent"
 )
+
+
+class NotAContractError(RuntimeError):
+    """Raised when Gemini determines the uploaded text is not a legal contract."""
 
 
 async def analyze_contract(contract_id: str, text_content: str) -> AnalysisResult:
@@ -72,6 +76,19 @@ async def analyze_contract(contract_id: str, text_content: str) -> AnalysisResul
 
     if not isinstance(analysis_data, dict):
         raise RuntimeError("Gemini returned a JSON value instead of an object.")
+
+    # The prompt asks Gemini to self-classify before analyzing. A non-contract
+    # must never be saved as an analysis — the caller turns this into a
+    # "not_a_contract" status on the contract instead.
+    is_contract = analysis_data.get("is_contract", True)
+    if is_contract is False or (
+        isinstance(is_contract, str) and is_contract.strip().lower() == "false"
+    ):
+        what_it_is = str(analysis_data.get("summary", "")).strip()
+        raise NotAContractError(
+            "The uploaded document does not appear to be a legal contract."
+            + (f" Gemini's take: {what_it_is}" if what_it_is else "")
+        )
 
     key_clauses = [
         ClauseAnalysis(**clause)

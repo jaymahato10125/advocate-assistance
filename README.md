@@ -1,8 +1,8 @@
 # Advocate Contracts
 
-Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations:
+Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations. Analysis runs as a server-side background task (so large files never hit request timeouts), and Gemini self-classifies each document — uploads that aren't legal contracts are flagged with a `not_a_contract` status instead of producing a bogus report:
 
-- **Backend** (this directory, `app/`) — FastAPI + MongoDB API.
+- **Backend** (this directory, `backend/`) — FastAPI + MongoDB API.
 - **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion).
 
 ## Requirements
@@ -40,10 +40,10 @@ Atlas **Network Access**, and replace the placeholders in `MONGODB_URI`. If the
 username or password contains characters such as `@`, `:`, `/`, or `#`, URL-encode
 them before putting them in the connection string. Do not commit `.env`.
 
-Start the API from the project root—the directory containing `app/`:
+Start the API from the project root—the directory containing `backend/`:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn backend.main:app --reload
 ```
 
 The API is available at <http://127.0.0.1:8000>.
@@ -78,6 +78,9 @@ Frontend-specific environment variables belong in `frontend/.env.local` (or
 | `NEXT_PUBLIC_API_BASE_URL` | Deployed FastAPI API origin. In development, leave it unset to use the `/api` proxy. |
 | `API_PROXY_TARGET` | Development proxy target; defaults to `http://127.0.0.1:8000`. |
 | `NEXT_PUBLIC_SITE_URL` | Public site URL used for metadata and sharing images. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (safe for the browser). |
+| `CLERK_SECRET_KEY` | Clerk secret key — must match the backend's `CLERK_SECRET_KEY`. Server-only. |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | Auth page paths (`/sign-in`, `/sign-up`). |
 
 The frontend mirrors the backend upload constraints in `frontend/lib/config.ts`.
 If `ALLOWED_EXTENSIONS` or `MAX_FILE_SIZE_MB` changes in the backend, update the
@@ -85,8 +88,27 @@ frontend values as well.
 
 Analysis results are persisted in MongoDB and reloaded through
 `GET /analysis/contracts/{contract_id}`. The frontend also keeps the result in
-the TanStack Query cache for the current session. Authentication is not
-implemented yet; `frontend/lib/auth.ts` is the integration seam for adding it.
+the TanStack Query cache for the current session. While an analysis runs, the
+frontend polls the contract status every few seconds — the dashboard badge
+flips from `analyzing` on its own and the finished report appears
+automatically, even if you switch pages.
+
+### Authentication (Clerk)
+
+The app uses [Clerk](https://clerk.com) for authentication. Next.js middleware
+(`frontend/middleware.ts`) protects `/dashboard/*`, and the browser attaches a
+Clerk session token (`Authorization: Bearer <token>`) to every API call through
+`frontend/lib/auth.ts`. The FastAPI backend verifies the token with the Clerk
+Python SDK (`backend/auth.py`) and scopes every contract and analysis to its
+owner's Clerk user id — users only ever see their own documents.
+
+To enable it: create a Clerk application, set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+and `CLERK_SECRET_KEY` in `frontend/.env.local`, and set the same
+`CLERK_SECRET_KEY` in the backend `.env` (see `.env.example` and
+`frontend/.env.example`). For local development without Clerk, set
+`AUTH_DISABLED=true` in the backend `.env` — every request is then treated as a
+fixed dev user and all documents stay visible. **Never enable `AUTH_DISABLED`
+in production.**
 
 ## Configuration
 
@@ -106,6 +128,10 @@ The application reads configuration from `.env` using `python-dotenv`:
 | `UPLOADS_DIR` | No | `uploads` | Local upload directory used only when `STORAGE_BACKEND=local`. |
 | `ALLOWED_EXTENSIONS` | No | `[".pdf", ".txt"]` | Allowed upload extensions (JSON array or comma-separated). |
 | `MAX_FILE_SIZE_MB` | No | `10` | Maximum upload size in megabytes. |
+| `CLERK_SECRET_KEY` | Yes (unless `AUTH_DISABLED=true`) | — | Clerk secret key used to verify session tokens. Must match the frontend's key. |
+| `CLERK_AUTHORIZED_PARTIES` | No | `["http://localhost:3000"]` | Origins allowed in the session token's `azp` claim (JSON array or comma-separated). |
+| `CORS_ORIGINS` | No | `["http://localhost:3000"]` | Browser origins allowed to call the API directly (production; the dev proxy makes this a no-op locally). |
+| `AUTH_DISABLED` | No | `false` | Local-dev escape hatch: skips Clerk verification and treats every request as a fixed dev user. Never `true` in production. |
 
 ## API documentation
 
@@ -116,7 +142,8 @@ Interactive documentation is available while the API is running:
 
 ## API endpoints
 
-The implemented endpoints are:
+The implemented endpoints are (all except `GET /` require a Clerk session token
+as `Authorization: Bearer <token>`):
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -125,42 +152,67 @@ The implemented endpoints are:
 | `GET` | `/contracts/` | List uploaded contracts (without text content). |
 | `GET` | `/contracts/{id}` | Retrieve a contract by its MongoDB `_id`. |
 | `DELETE` | `/contracts/{id}` | Permanently delete a contract, its stored file, and all saved analyses; returns `204 No Content`. |
-| `POST` | `/analysis/analyze/{contract_id}` | Analyze a contract with Gemini and store the result. |
+| `POST` | `/analysis/analyze/{contract_id}` | Start a background Gemini analysis; returns `202 Accepted` immediately. Poll the contract status, then fetch the saved analysis. |
 | `GET` | `/analysis/contracts/{contract_id}` | Retrieve the latest saved analysis for a contract. |
+| `GET` | `/analysis/contracts/{contract_id}/download?format=pdf\|doc\|txt` | Download the latest analysis as a report file (`pdf` is the default). Filenames derive from the contract name, e.g. `Office-Lease-analysis.pdf`. |
 | `GET` | `/analysis/{analysis_id}` | Retrieve a saved analysis by its MongoDB `_id`. |
 
 ## How it works
 
-1. `POST /contracts/upload` stores the file in private Cloudflare R2 when configured (or `UPLOADS_DIR` locally), extracts text (`pypdf` for PDFs), and stores a contract document with status `uploaded`.
-2. `POST /analysis/analyze/{contract_id}` sets the status to `analyzing`, sends the extracted text to Gemini with a structured legal-analysis prompt, and stores the parsed result (summary, contract type, key clauses, risk flags, overall risk level, recommendations) in the `analysis` collection. The contract status becomes `analyzed` on success or `error` on failure (the `502` response includes the underlying cause).
-3. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
-4. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+1. `POST /contracts/upload` stores the file in private Cloudflare R2 when configured (or `UPLOADS_DIR` locally), extracts text (`PyPDF2` for PDFs), and stores a contract document with status `uploaded`.
+2. `POST /analysis/analyze/{contract_id}` sets the status to `analyzing` (stamping `analysis_started_at`) and returns `202 Accepted` immediately — the Gemini call runs as a FastAPI background task, so large contracts never outlive the HTTP request (browsers and the dev proxy drop long-lived connections). Re-POSTing while a run is in progress is a no-op; a run whose status has been stuck in `analyzing` for over 10 minutes is considered stale and may be restarted.
+3. The background task sends the extracted text to Gemini with a structured legal-analysis prompt and stores the parsed result (summary, contract type, key clauses, risk flags, overall risk level, recommendations) in the `analysis` collection. The contract status then becomes:
+   - `analyzed` — analysis succeeded and was saved;
+   - `not_a_contract` — Gemini's `is_contract` self-classification decided the document isn't a legal contract (no analysis is saved, so non-contracts never produce made-up clauses);
+   - `error` — the analysis genuinely failed (the cause is logged server-side).
+4. The frontend polls while a contract is `analyzing` (detail page every 3 s, dashboard list likewise) and reloads the saved analysis when the status flips — so the report shows up automatically without a manual refresh.
+5. `GET /analysis/contracts/{contract_id}/download` renders the latest analysis as a downloadable report: plain text, Word-compatible HTML (`.doc`), or a PDF built with fpdf2 (`backend/service/report.py`). PDF core fonts are latin-1, so the builder maps common Unicode (₹ → `Rs.`, curly quotes → `"`, em/en dashes → `-`) before rendering.
+6. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
+7. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+
+## Running the tests
+
+```bash
+./venv/bin/python -m pytest tests/
+```
+
+The suite (`tests/`) uses FastAPI's `TestClient` with faked MongoDB collections
+and a stubbed Clerk/Gemini, so it runs offline with no database or API keys.
+It covers authentication and owner scoping (`test_auth.py`), the asynchronous
+analysis lifecycle — `202` responses, background completion, failure, and
+duplicate/stale-run handling (`test_analysis.py`) — and the Gemini response
+parsing, including the `is_contract` guard (`test_gemini_analyse.py`).
 
 ## Troubleshooting
 
 - `Invalid URI scheme`: check that `MONGODB_URI` starts with `mongodb://` or `mongodb+srv://`.
 - MongoDB connection errors: confirm your Atlas IP access list, database user, and `MONGODB_URI`.
-- Import errors: run `uvicorn app.main:app --reload` from the project root, not from inside `app/`.
+- Import errors: run `uvicorn backend.main:app --reload` from the project root, not from inside `backend/`.
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
 - Contract deletion returns `503`: verify the R2 endpoint, bucket name, and bucket-scoped API token in `.env`; the contract remains in MongoDB if its stored file cannot be deleted.
-- Analysis returns `502`: the response `detail` includes the underlying Gemini API cause. Gemini 3.6 Flash does not need a `temperature` parameter; keep the request compatible with the current Gemini API and verify the API key, quota, and model name.
+- Contract stuck in `analyzing`: runs are considered stale after 10 minutes — just start the analysis again. If it keeps happening, check the server logs for the underlying Gemini cause (API key, quota, or model name — Gemini 3.6 Flash does not need a `temperature` parameter).
+- Contract shows `error` after analysis: the background analysis failed; the server log has the exception (see "Contract analysis failed for ..."). Retry from the contract's Analysis tab.
+- Contract shows `not_a_contract`: Gemini determined the uploaded file isn't a legal contract, so no analysis was generated. Upload the actual contract file, or run the analysis again if you believe it was misclassified.
+- API returns `401 Not authenticated`: the request is missing a valid Clerk session token — sign in through the frontend and confirm `CLERK_SECRET_KEY` matches between backend and frontend (or set `AUTH_DISABLED=true` for local dev).
 
 ## Project structure
 
 ```text
 .
-├── app/                        # FastAPI backend
+├── backend/                    # FastAPI backend
 │   ├── __init__.py             # Python package marker
+│   ├── auth.py                 # Clerk session-token verification (get_current_user)
 │   ├── config.py               # Environment configuration
 │   ├── database.py             # MongoDB client, collections, and startup index cleanup
 │   ├── main.py                 # FastAPI application setup
 │   ├── models.py               # Pydantic models (Contact, AnalysisResult, ...)
 │   ├── routes/
 │   │   ├── contracts.py        # Upload / list / get / delete contract endpoints
-│   │   └── analysis.py         # Gemini analysis endpoint
+│   │   └── analysis.py         # Async Gemini analysis (202 + background task)
 │   ├── service/
 │   │   ├── document_parser.py  # PDF/TXT text extraction
-│   │   ├── gemini_analyse.py   # Gemini API client and response parsing
+│   │   ├── gemini_analyse.py   # Gemini API client, response parsing, is_contract guard
+│   │   ├── report.py           # Analysis report builders (PDF/DOC/TXT downloads)
 │   │   ├── storage.py          # R2/local upload and deletion adapter
 │   │   └── prompt.py           # Analysis prompts
 ├── uploads/                    # Local files when STORAGE_BACKEND=local
@@ -168,10 +220,12 @@ The implemented endpoints are:
 │   ├── app/                    # App Router pages (marketing, dashboard)
 │   ├── components/             # UI, contract, and analysis components
 │   ├── hooks/                  # TanStack Query hooks
-│   ├── lib/                    # API client, config, validation, auth seam
+│   ├── lib/                    # API client, config, validation, Clerk auth
 │   ├── types/                  # Frontend API response types
+│   ├── middleware.ts           # Clerk route protection for /dashboard/*
 │   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
-├── implement.md                # Build specification used for the frontend
+├── tests/                      # Pytest suite (auth, async analysis flow, Gemini parsing)
+├── clerkAuth.md                # Clerk authentication implementation plan
 ├── requirements.txt            # Pinned Python dependencies
 └── README.md
 ```

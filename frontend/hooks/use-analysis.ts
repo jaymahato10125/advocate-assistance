@@ -10,7 +10,10 @@ export const analysisKeys = {
   byContract: (contractId: string) => ["analysis", contractId] as const,
 };
 
-export function useCachedAnalysis(contractId: string) {
+/** How often to re-check for a saved analysis while Gemini runs server-side. */
+export const ANALYSIS_POLL_INTERVAL_MS = 3000;
+
+export function useCachedAnalysis(contractId: string, polling = false) {
   return useQuery<AnalysisResult | null>({
     queryKey: analysisKeys.byContract(contractId),
     queryFn: async () => {
@@ -25,6 +28,9 @@ export function useCachedAnalysis(contractId: string) {
     enabled: Boolean(contractId),
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
+    // While a background analysis runs, poll for the saved result so the
+    // report appears on its own the moment Gemini finishes.
+    refetchInterval: polling ? ANALYSIS_POLL_INTERVAL_MS : false,
   });
 }
 
@@ -33,12 +39,11 @@ export function useAnalyzeContract(contractId: string) {
 
   return useMutation({
     mutationFn: () => api.analyzeContract(contractId),
-    onSuccess: (response) => {
-      queryClient.setQueryData(
-        analysisKeys.byContract(contractId),
-        response.analysis,
-      );
-      // The contract status flips to "analyzed" server-side — refresh it.
+    onSuccess: () => {
+      // The endpoint answers 202 immediately and analyzes in the background;
+      // the contract status is now "analyzing" — refresh it so the polling
+      // in useContract / useContracts takes over until it flips to
+      // "analyzed" or "error".
       void queryClient.invalidateQueries({
         queryKey: contractKeys.detail(contractId),
       });

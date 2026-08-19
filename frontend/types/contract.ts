@@ -3,7 +3,12 @@
  * Verified against app/models.py and app/routes/*.
  */
 
-export type ContractStatus = "uploaded" | "analyzing" | "analyzed" | "error";
+export type ContractStatus =
+  | "uploaded"
+  | "analyzing"
+  | "analyzed"
+  | "not_a_contract"
+  | "error";
 
 export interface Contract {
   id: string;
@@ -57,9 +62,13 @@ export interface AnalysisResult {
   recommendations: string[];
 }
 
-/** POST /analysis/analyze/{contract_id} response. */
+/**
+ * POST /analysis/analyze/{contract_id} response (202 Accepted).
+ * Analysis runs server-side as a background task — the saved result is
+ * fetched via GET /analysis/contracts/{contract_id} once the contract
+ * status flips to "analyzed".
+ */
 export interface AnalyzeContractResponse {
   message: string;
-  analysis: AnalysisResult;
-  id: string;
+  status: ContractStatus;
 }

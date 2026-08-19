@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.config import (
+from backend.config import (
     R2_ACCESS_KEY_ID,
     R2_BUCKET_NAME,
     R2_ENDPOINT_URL,

@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, CircleDashed, Loader2, type LucideIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, CircleDashed, FileWarning, Loader2, type LucideIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,8 @@ interface StatusMeta {
 }
 
 /**
- * Contract status is a state machine: uploaded → analyzing → analyzed | error.
+ * Contract status is a state machine:
+ * uploaded → analyzing → analyzed | not_a_contract | error.
  * Each state gets a distinct color + icon everywhere a contract appears.
  */
 export const CONTRACT_STATUS_META: Record<ContractStatus, StatusMeta> = {
@@ -31,6 +32,11 @@ export const CONTRACT_STATUS_META: Record<ContractStatus, StatusMeta> = {
     label: "Analyzed",
     icon: CheckCircle2,
     className: "border-primary/30 bg-primary/10 text-primary",
+  },
+  not_a_contract: {
+    label: "Not a contract",
+    icon: FileWarning,
+    className: "border-risk-medium/30 bg-risk-medium/10 text-risk-medium",
   },
   error: {
     label: "Error",

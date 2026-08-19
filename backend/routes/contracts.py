@@ -1,22 +1,25 @@
 from bson import ObjectId
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 import os
 import tempfile
 import uuid
-from app.models import Contact
-from app.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
-from app.service.document_parser import extract_text
-from app.service.storage import StorageError, delete_upload, save_upload
-from app.database import analysis_collection, contracts_collection
+from backend.models import Contact
+from backend.auth import ClerkUser, get_current_user, owner_filter
+from backend.config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB
+from backend.service.document_parser import extract_text
+from backend.service.storage import StorageError, delete_upload, save_upload
+from backend.database import analysis_collection, contracts_collection
 
 router = APIRouter(
     prefix="/contracts",
     tags=["Contracts"],
+    dependencies=[Depends(get_current_user)],
 )
 
 @router.post("/upload")
 async def upload_contract(
-    file: UploadFile = File(...),  
+    file: UploadFile = File(...),
+    user: ClerkUser = Depends(get_current_user),
 ):
     """
     Upload a contract file for analysis.
@@ -51,6 +54,7 @@ async def upload_contract(
         raise HTTPException(status_code=422, detail=f"Could not process the file: {exc}") from exc
 
     contract_data = Contact(
+        owner_id=user.user_id,
         filename=object_key,
         original_name=file.filename,
         text_content=parsed["text"] if isinstance(parsed, dict) else parsed,
@@ -70,26 +74,28 @@ async def upload_contract(
 
 
 @router.get("/")
-async def list_contracts():
+async def list_contracts(user: ClerkUser = Depends(get_current_user)):
     """
-    List all uploaded contracts.
+    List the caller's uploaded contracts.
     """
     contracts = []
-    for doc in contracts_collection.find({}, {"text_content": 0}):  # Exclude text content for listing
+    for doc in contracts_collection.find(owner_filter(user), {"text_content": 0}):  # Exclude text content for listing
         contract = Contact(**doc)
         contract.id = str(doc["_id"])
         contracts.append(contract.model_dump())
     return contracts
 
 @router.get("/{contract_id}")
-async def get_contract(contract_id: str):
+async def get_contract(contract_id: str, user: ClerkUser = Depends(get_current_user)):
     """
     Get details of a specific contract by its ID.
+
+    Other users' contracts return 404 (not 403) so ids cannot be enumerated.
     """
     if not ObjectId.is_valid(contract_id):
         raise HTTPException(status_code=400, detail="Invalid contract ID.")
 
-    doc = contracts_collection.find_one({"_id": ObjectId(contract_id)})
+    doc = contracts_collection.find_one({"_id": ObjectId(contract_id), **owner_filter(user)})
     if not doc:
         raise HTTPException(status_code=404, detail="Contract not found.")
     
@@ -99,13 +105,15 @@ async def get_contract(contract_id: str):
 
 
 @router.delete("/{contract_id}", status_code=204)
-async def delete_contract(contract_id: str) -> Response:
-    """Delete a contract, its stored file, and all saved analyses."""
+async def delete_contract(contract_id: str, user: ClerkUser = Depends(get_current_user)) -> Response:
+    """Delete one of the caller's contracts, its stored file, and all saved analyses."""
     if not ObjectId.is_valid(contract_id):
         raise HTTPException(status_code=400, detail="Invalid contract ID.")
 
     object_id = ObjectId(contract_id)
-    doc = contracts_collection.find_one({"_id": object_id}, {"filename": 1})
+    doc = contracts_collection.find_one(
+        {"_id": object_id, **owner_filter(user)}, {"filename": 1}
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Contract not found.")
 
