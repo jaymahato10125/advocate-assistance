@@ -16,6 +16,7 @@ import backend.routes.analysis as analysis_module
 from backend.auth import ClerkUser, get_current_user
 from backend.main import app
 from backend.models import AnalysisResult
+from backend.service.gemini_analyse import NotAContractError
 
 VALID_OBJECT_ID = "a" * 24
 
@@ -124,6 +125,23 @@ def test_analyze_failure_marks_contract_error(client, monkeypatch):
     assert response.status_code == 202
     assert contracts.document["status"] == "error"
     assert analyses.inserted == []
+
+
+def test_analyze_non_contract_marks_not_a_contract(client, monkeypatch):
+    contracts, analyses = _install_fakes(monkeypatch, _contract_document())
+
+    async def rejecting_service(contract_id, text_content):
+        raise NotAContractError(
+            "The uploaded document does not appear to be a legal contract."
+        )
+
+    monkeypatch.setattr(analysis_module, "analyze_contract_service", rejecting_service)
+
+    response = client.post(f"/analysis/analyze/{VALID_OBJECT_ID}")
+
+    assert response.status_code == 202
+    assert contracts.document["status"] == "not_a_contract"
+    assert analyses.inserted == []  # No bogus analysis is saved.
 
 
 def test_analyze_already_in_progress_does_not_duplicate(client, monkeypatch):

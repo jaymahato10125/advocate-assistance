@@ -19,7 +19,7 @@ class Contact(BaseModel):
     text_content: str = ""
     page_count: int = 0
     word_count: int = 0
-    status: str = "uploaded"  # uploaded, analyzing, analyzed, error
+    status: str = "uploaded"  # uploaded, analyzing, analyzed, not_a_contract, error
 
     def model_post_init(self, __context):
         if not self.upload_date:

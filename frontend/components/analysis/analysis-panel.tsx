@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, type Variants } from "framer-motion";
-import { ListChecks, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { FileWarning, ListChecks, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -183,6 +183,18 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             </Card>
           </motion.div>
         </motion.div>
+      ) : contract.status === "not_a_contract" ? (
+        <EmptyState
+          icon={FileWarning}
+          title="This doesn't look like a legal contract"
+          description="Gemini reviewed the document and it doesn't appear to be a contract or agreement, so no analysis was generated. If you uploaded the wrong file, delete it and upload the contract instead. If you think this is a mistake, you can run the analysis again."
+          action={
+            <Button variant="outline" onClick={runAnalysis} disabled={isRunning}>
+              <RefreshCw aria-hidden="true" />
+              Run analysis again
+            </Button>
+          }
+        />
       ) : (
         <EmptyState
           icon={Sparkles}

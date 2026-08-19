@@ -227,6 +227,11 @@ function AnalysisStatusWatcher({ contract }: { contract: Contract }) {
       toast.success("Analysis complete", {
         description: "Key clauses, risk flags, and recommendations are ready.",
       });
+    } else if (contract.status === "not_a_contract") {
+      toast.warning("Not a legal contract", {
+        description:
+          "Gemini determined this document isn't a contract, so no analysis was generated.",
+      });
     } else if (contract.status === "error") {
       toast.error("Analysis failed", {
         description:

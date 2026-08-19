@@ -1,6 +1,6 @@
 # Advocate Contracts
 
-Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations:
+Advocate Contracts is a full-stack legal-tech app for uploading, reviewing, analyzing, and deleting contracts (PDF/TXT). It extracts text and uses Google Gemini to identify key clauses, severity-tagged risk flags, an overall risk level, and recommendations. Analysis runs as a server-side background task (so large files never hit request timeouts), and Gemini self-classifies each document — uploads that aren't legal contracts are flagged with a `not_a_contract` status instead of producing a bogus report:
 
 - **Backend** (this directory, `backend/`) — FastAPI + MongoDB API.
 - **Frontend** (`frontend/`) — Next.js 15 (App Router, TypeScript, Tailwind CSS v4, TanStack Query, Framer Motion).
@@ -88,7 +88,10 @@ frontend values as well.
 
 Analysis results are persisted in MongoDB and reloaded through
 `GET /analysis/contracts/{contract_id}`. The frontend also keeps the result in
-the TanStack Query cache for the current session.
+the TanStack Query cache for the current session. While an analysis runs, the
+frontend polls the contract status every few seconds — the dashboard badge
+flips from `analyzing` on its own and the finished report appears
+automatically, even if you switch pages.
 
 ### Authentication (Clerk)
 
@@ -149,16 +152,34 @@ as `Authorization: Bearer <token>`):
 | `GET` | `/contracts/` | List uploaded contracts (without text content). |
 | `GET` | `/contracts/{id}` | Retrieve a contract by its MongoDB `_id`. |
 | `DELETE` | `/contracts/{id}` | Permanently delete a contract, its stored file, and all saved analyses; returns `204 No Content`. |
-| `POST` | `/analysis/analyze/{contract_id}` | Analyze a contract with Gemini and store the result. |
+| `POST` | `/analysis/analyze/{contract_id}` | Start a background Gemini analysis; returns `202 Accepted` immediately. Poll the contract status, then fetch the saved analysis. |
 | `GET` | `/analysis/contracts/{contract_id}` | Retrieve the latest saved analysis for a contract. |
 | `GET` | `/analysis/{analysis_id}` | Retrieve a saved analysis by its MongoDB `_id`. |
 
 ## How it works
 
-1. `POST /contracts/upload` stores the file in private Cloudflare R2 when configured (or `UPLOADS_DIR` locally), extracts text (`pypdf` for PDFs), and stores a contract document with status `uploaded`.
-2. `POST /analysis/analyze/{contract_id}` sets the status to `analyzing`, sends the extracted text to Gemini with a structured legal-analysis prompt, and stores the parsed result (summary, contract type, key clauses, risk flags, overall risk level, recommendations) in the `analysis` collection. The contract status becomes `analyzed` on success or `error` on failure (the `502` response includes the underlying cause).
-3. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
-4. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+1. `POST /contracts/upload` stores the file in private Cloudflare R2 when configured (or `UPLOADS_DIR` locally), extracts text (`PyPDF2` for PDFs), and stores a contract document with status `uploaded`.
+2. `POST /analysis/analyze/{contract_id}` sets the status to `analyzing` (stamping `analysis_started_at`) and returns `202 Accepted` immediately — the Gemini call runs as a FastAPI background task, so large contracts never outlive the HTTP request (browsers and the dev proxy drop long-lived connections). Re-POSTing while a run is in progress is a no-op; a run whose status has been stuck in `analyzing` for over 10 minutes is considered stale and may be restarted.
+3. The background task sends the extracted text to Gemini with a structured legal-analysis prompt and stores the parsed result (summary, contract type, key clauses, risk flags, overall risk level, recommendations) in the `analysis` collection. The contract status then becomes:
+   - `analyzed` — analysis succeeded and was saved;
+   - `not_a_contract` — Gemini's `is_contract` self-classification decided the document isn't a legal contract (no analysis is saved, so non-contracts never produce made-up clauses);
+   - `error` — the analysis genuinely failed (the cause is logged server-side).
+4. The frontend polls while a contract is `analyzing` (detail page every 3 s, dashboard list likewise) and reloads the saved analysis when the status flips — so the report shows up automatically without a manual refresh.
+5. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
+6. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+
+## Running the tests
+
+```bash
+./venv/bin/python -m pytest tests/
+```
+
+The suite (`tests/`) uses FastAPI's `TestClient` with faked MongoDB collections
+and a stubbed Clerk/Gemini, so it runs offline with no database or API keys.
+It covers authentication and owner scoping (`test_auth.py`), the asynchronous
+analysis lifecycle — `202` responses, background completion, failure, and
+duplicate/stale-run handling (`test_analysis.py`) — and the Gemini response
+parsing, including the `is_contract` guard (`test_gemini_analyse.py`).
 
 ## Troubleshooting
 
@@ -167,7 +188,9 @@ as `Authorization: Bearer <token>`):
 - Import errors: run `uvicorn backend.main:app --reload` from the project root, not from inside `backend/`.
 - `E11000 duplicate key error ... contract_id: null`: a stale unique index from an older version — restart the app (startup drops it automatically) or drop the `contract_id_1` / `analysis_id_1` indexes manually.
 - Contract deletion returns `503`: verify the R2 endpoint, bucket name, and bucket-scoped API token in `.env`; the contract remains in MongoDB if its stored file cannot be deleted.
-- Analysis returns `502`: the response `detail` includes the underlying Gemini API cause. Gemini 3.6 Flash does not need a `temperature` parameter; keep the request compatible with the current Gemini API and verify the API key, quota, and model name.
+- Contract stuck in `analyzing`: runs are considered stale after 10 minutes — just start the analysis again. If it keeps happening, check the server logs for the underlying Gemini cause (API key, quota, or model name — Gemini 3.6 Flash does not need a `temperature` parameter).
+- Contract shows `error` after analysis: the background analysis failed; the server log has the exception (see "Contract analysis failed for ..."). Retry from the contract's Analysis tab.
+- Contract shows `not_a_contract`: Gemini determined the uploaded file isn't a legal contract, so no analysis was generated. Upload the actual contract file, or run the analysis again if you believe it was misclassified.
 - API returns `401 Not authenticated`: the request is missing a valid Clerk session token — sign in through the frontend and confirm `CLERK_SECRET_KEY` matches between backend and frontend (or set `AUTH_DISABLED=true` for local dev).
 
 ## Project structure
@@ -183,10 +206,10 @@ as `Authorization: Bearer <token>`):
 │   ├── models.py               # Pydantic models (Contact, AnalysisResult, ...)
 │   ├── routes/
 │   │   ├── contracts.py        # Upload / list / get / delete contract endpoints
-│   │   └── analysis.py         # Gemini analysis endpoint
+│   │   └── analysis.py         # Async Gemini analysis (202 + background task)
 │   ├── service/
 │   │   ├── document_parser.py  # PDF/TXT text extraction
-│   │   ├── gemini_analyse.py   # Gemini API client and response parsing
+│   │   ├── gemini_analyse.py   # Gemini API client, response parsing, is_contract guard
 │   │   ├── storage.py          # R2/local upload and deletion adapter
 │   │   └── prompt.py           # Analysis prompts
 ├── uploads/                    # Local files when STORAGE_BACKEND=local
@@ -198,7 +221,7 @@ as `Authorization: Bearer <token>`):
 │   ├── types/                  # Frontend API response types
 │   ├── middleware.ts           # Clerk route protection for /dashboard/*
 │   └── next.config.ts          # Dev proxy: /api/* → http://127.0.0.1:8000/*
-├── tests/                      # Pytest suite (auth and owner scoping)
+├── tests/                      # Pytest suite (auth, async analysis flow, Gemini parsing)
 ├── clerkAuth.md                # Clerk authentication implementation plan
 ├── requirements.txt            # Pinned Python dependencies
 └── README.md

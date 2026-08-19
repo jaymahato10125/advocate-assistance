@@ -3,7 +3,12 @@
  * Verified against app/models.py and app/routes/*.
  */
 
-export type ContractStatus = "uploaded" | "analyzing" | "analyzed" | "error";
+export type ContractStatus =
+  | "uploaded"
+  | "analyzing"
+  | "analyzed"
+  | "not_a_contract"
+  | "error";
 
 export interface Contract {
   id: string;

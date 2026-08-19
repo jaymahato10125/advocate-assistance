@@ -7,6 +7,7 @@ CONTRACT_ANALYSIS_PROMPT="""
 
     Provide your analysis as a JSON object with exactly this structure:
     {{
+    "is_contract": true or false,
     "summary": "A 2-3 sentence summary of what this contract is about",
     "contract_type": "The type of contract (e.g., NDA, Service Agreement, Employment Contract)",
     "key_clauses": [
@@ -34,9 +35,18 @@ CONTRACT_ANALYSIS_PROMPT="""
 }}
 
 Rules:
-- Identify at least 3-5 key clauses
-- Flag any unusual, missing, or one-sided clauses as risks
-- Be specific with clause references
+- First decide whether the text is a legal contract or agreement (NDA, service
+  agreement, lease, employment contract, partnership deed, etc.). Set
+  "is_contract" to true only if it genuinely is one.
+- If it is NOT a contract (e.g., a resume, recipe, article, invoice, letter,
+  random prose): set "is_contract" to false, write a one-sentence "summary"
+  stating what the document actually is, set "contract_type" to "Not a
+  contract", and return EMPTY arrays for "key_clauses", "risk_flags", and
+  "recommendations" with "overall_risk_level" set to "low". Do not invent
+  clauses or risks for a non-contract.
+- If it IS a contract: identify at least 3-5 key clauses, flag any unusual,
+  missing, or one-sided clauses as risks, and be specific with clause
+  references.
 - Keep explanations simple and clear
 - Return ONLY the JSON object, no other text
 

@@ -8,7 +8,10 @@ from backend.auth import ClerkUser, get_current_user, owner_filter
 from backend.config import GEMINI_API_KEY
 from backend.database import analysis_collection, contracts_collection
 from backend.models import AnalysisResult
-from backend.service.gemini_analyse import analyze_contract as analyze_contract_service
+from backend.service.gemini_analyse import (
+    NotAContractError,
+    analyze_contract as analyze_contract_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,15 @@ async def _run_analysis(contract_id: str, text_content: str) -> None:
     object_id = ObjectId(contract_id)
     try:
         result = await analyze_contract_service(contract_id, text_content)
+    except NotAContractError as exc:
+        # Not a failure — the document simply isn't a contract, so no analysis
+        # is saved and the contract gets a distinct status the UI can explain.
+        logger.info("Contract %s rejected as non-contract: %s", contract_id, exc)
+        contracts_collection.update_one(
+            {"_id": object_id},
+            {"$set": {"status": "not_a_contract"}},
+        )
+        return
     except Exception:
         logger.exception("Contract analysis failed for %s", contract_id)
         contracts_collection.update_one(
