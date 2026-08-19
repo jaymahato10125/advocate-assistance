@@ -1,8 +1,8 @@
 "use client";
 
 import { motion, type Variants } from "framer-motion";
-import { FileWarning, ListChecks, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
-import { useEffect } from "react";
+import { Download, FileWarning, ListChecks, Loader2, RefreshCw, ScrollText, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { KeyClauseList } from "@/components/analysis/key-clause-list";
@@ -12,10 +12,19 @@ import { RiskGauge } from "@/components/analysis/risk-gauge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAnalyzeContract, useCachedAnalysis } from "@/hooks/use-analysis";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, api, type ReportFormat } from "@/lib/api-client";
+import { formatDateTime } from "@/lib/utils";
 import type { Contract } from "@/types/contract";
 
 const staggerContainer: Variants = {
@@ -58,6 +67,24 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
             "Gemini is reading the contract — large files can take a few minutes.",
         }),
     });
+  };
+
+  const [downloading, setDownloading] = useState<ReportFormat | null>(null);
+
+  const downloadReport = async (format: ReportFormat) => {
+    setDownloading(format);
+    try {
+      await api.downloadAnalysisReport(contract.id, format);
+    } catch (error) {
+      toast.error("Download failed", {
+        description:
+          error instanceof ApiError
+            ? error.detail
+            : "Something went wrong while preparing the report.",
+      });
+    } finally {
+      setDownloading(null);
+    }
   };
 
   const showFailure =
@@ -108,6 +135,44 @@ export function AnalysisPanel({ contract }: { contract: Contract }) {
           animate="show"
           className="space-y-6"
         >
+          <motion.div
+            variants={staggerItem}
+            className="flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm text-muted-foreground">
+              Analyzed {formatDateTime(cached.analysis_date)} ·{" "}
+              {cached.key_clauses.length} clauses · {cached.risk_flags.length}{" "}
+              risk flags
+            </p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={downloading !== null}>
+                  {downloading !== null ? (
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download aria-hidden="true" />
+                  )}
+                  {downloading !== null
+                    ? `Preparing ${downloading.toUpperCase()}…`
+                    : "Download report"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Download as</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => downloadReport("pdf")}>
+                  PDF document (.pdf)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadReport("doc")}>
+                  Word document (.doc)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadReport("txt")}>
+                  Plain text (.txt)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </motion.div>
+
           <div className="grid gap-6 lg:grid-cols-5">
             <motion.div variants={staggerItem} className="lg:col-span-3">
               <Card className="h-full">

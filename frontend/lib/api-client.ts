@@ -123,6 +123,54 @@ async function uploadContract(
   });
 }
 
+/** Formats the backend can render the analysis report in. */
+export type ReportFormat = "pdf" | "doc" | "txt";
+
+/**
+ * Download the saved analysis as a file. Unlike `request`, this deals in
+ * blobs: it pulls the filename from Content-Disposition and triggers a
+ * browser download.
+ */
+async function downloadAnalysisReport(
+  contractId: string,
+  format: ReportFormat,
+): Promise<void> {
+  const authHeaders = await getAuthHeaders();
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `${API_BASE_URL}/analysis/contracts/${contractId}/download?format=${format}`,
+      { headers: { ...authHeaders } },
+    );
+  } catch {
+    throw new ApiError(0, NETWORK_ERROR_DETAIL);
+  }
+
+  if (!response.ok) {
+    let detail = `Download failed with status ${response.status}.`;
+    try {
+      detail = extractDetail(await response.json(), detail);
+    } catch {
+      // Non-JSON error body — keep the fallback.
+    }
+    if (response.status === 401) handleUnauthorized();
+    throw new ApiError(response.status, detail);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filenameMatch = /filename="?([^";]+)"?/.exec(disposition);
+  const filename = filenameMatch?.[1] ?? `contract-analysis.${format}`;
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export const api = {
   listContracts: () => request<Contract[]>("/contracts/"),
   getContract: (id: string) => request<Contract>(`/contracts/${id}`),
@@ -133,5 +181,6 @@ export const api = {
     request<AnalyzeContractResponse>(`/analysis/analyze/${id}`, { method: "POST" }),
   deleteContract: (id: string) =>
     request<void>(`/contracts/${id}`, { method: "DELETE" }),
+  downloadAnalysisReport,
   uploadContract,
 };
