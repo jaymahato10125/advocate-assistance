@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 from bson import ObjectId
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 
 from backend.auth import ClerkUser, get_current_user, owner_filter
 from backend.config import GEMINI_API_KEY
@@ -12,6 +12,7 @@ from backend.service.gemini_analyse import (
     NotAContractError,
     analyze_contract as analyze_contract_service,
 )
+from backend.service.report import build_doc, build_pdf, build_txt, report_basename
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,57 @@ async def analyze_contract_endpoint(
     background_tasks.add_task(_run_analysis, contract_id, contract["text_content"])
 
     return {"message": "Analysis started.", "status": "analyzing"}
+
+
+# format -> (builder, media type, file extension)
+_DOWNLOAD_FORMATS = {
+    "txt": (build_txt, "text/plain; charset=utf-8", "txt"),
+    "doc": (build_doc, "application/msword", "doc"),
+    "pdf": (build_pdf, "application/pdf", "pdf"),
+}
+
+
+@router.get("/contracts/{contract_id}/download")
+async def download_contract_analysis(
+    contract_id: str,
+    format: str = "pdf",
+    user: ClerkUser = Depends(get_current_user),
+):
+    """Download the latest saved analysis as a PDF, DOC, or TXT report."""
+    if not ObjectId.is_valid(contract_id):
+        raise HTTPException(status_code=400, detail="Invalid contract ID.")
+
+    contract = contracts_collection.find_one(
+        {"_id": ObjectId(contract_id), **owner_filter(user)}
+    )
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found.")
+
+    builder_entry = _DOWNLOAD_FORMATS.get(format.lower())
+    if not builder_entry:
+        raise HTTPException(
+            status_code=400, detail="Invalid format. Use pdf, doc, or txt."
+        )
+
+    doc = analysis_collection.find_one(
+        {"contract_id": contract_id},
+        sort=[("analysis_date", -1), ("_id", -1)],
+    )
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail="No saved analysis yet — run the analysis first.",
+        )
+
+    contract_name = contract.get("original_name", "contract")
+    builder, media_type, extension = builder_entry
+    content = builder(_analysis_from_document(doc), contract_name)
+    filename = f"{report_basename(contract_name)}.{extension}"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/contracts/{contract_id}", response_model=AnalysisResult)

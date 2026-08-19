@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from bson import ObjectId
 from fastapi.testclient import TestClient
 
 import backend.routes.analysis as analysis_module
@@ -52,12 +53,16 @@ class _FakeContractsCollection:
 
 
 class _FakeAnalysisCollection:
-    def __init__(self):
+    def __init__(self, latest=None):
         self.inserted = []
+        self.latest = latest  # Document returned by find_one (latest analysis).
 
     def insert_one(self, doc):
         self.inserted.append(doc)
         return SimpleNamespace(inserted_id="b" * 24)
+
+    def find_one(self, query, projection=None, sort=None):
+        return self.latest
 
 
 def _contract_document(**overrides):
@@ -79,9 +84,9 @@ def _stub_analysis_result(contract_id=VALID_OBJECT_ID):
     )
 
 
-def _install_fakes(monkeypatch, contract_document):
+def _install_fakes(monkeypatch, contract_document, latest_analysis=None):
     contracts = _FakeContractsCollection(contract_document)
-    analyses = _FakeAnalysisCollection()
+    analyses = _FakeAnalysisCollection(latest=latest_analysis)
     monkeypatch.setattr(analysis_module, "contracts_collection", contracts)
     monkeypatch.setattr(analysis_module, "analysis_collection", analyses)
     return contracts, analyses
@@ -223,3 +228,115 @@ def test_analyze_without_gemini_key_returns_500(client, monkeypatch):
     response = client.post(f"/analysis/analyze/{VALID_OBJECT_ID}")
     assert response.status_code == 500
     assert response.json()["detail"] == "Gemini API key is not configured."
+
+
+# --- Downloading the analysis report -----------------------------------------
+
+
+def _analysis_document():
+    return {
+        "_id": ObjectId("b" * 24),
+        "contract_id": VALID_OBJECT_ID,
+        "analysis_date": "2026-08-19T10:30:00",
+        "summary": "A one-year office lease.",
+        "contract_type": "Lease Agreement",
+        "key_clauses": [
+            {
+                "clause_title": "Rent",
+                "clause_text": "Monthly rent of ₹50,000.",
+                "explanation": "Fixed monthly rent.",
+                "is_standard": True,
+            }
+        ],
+        "risk_flags": [
+            {
+                "risk_title": "Automatic renewal",
+                "description": "Renews unless cancelled 60 days ahead.",
+                "risk_level": "medium",
+                "recommendation": "Add a renewal reminder.",
+                "clause_reference": "Term",
+            }
+        ],
+        "overall_risk_level": "medium",
+        "recommendations": ["Negotiate a cap on maintenance charges."],
+    }
+
+
+def _install_download_fakes(monkeypatch):
+    return _install_fakes(
+        monkeypatch,
+        _contract_document(original_name="Office Lease.pdf"),
+        latest_analysis=_analysis_document(),
+    )
+
+
+def test_download_analysis_as_txt(client, monkeypatch):
+    _install_download_fakes(monkeypatch)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=txt")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    disposition = response.headers["content-disposition"]
+    assert 'filename="Office-Lease-analysis.txt"' in disposition
+    assert "SUMMARY" in response.text
+    assert "A one-year office lease." in response.text
+    assert "Automatic renewal" in response.text
+
+
+def test_download_analysis_as_doc(client, monkeypatch):
+    _install_download_fakes(monkeypatch)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=doc")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/msword")
+    assert 'filename="Office-Lease-analysis.doc"' in response.headers["content-disposition"]
+    assert "<html" in response.text
+    assert "Key Clauses (1)" in response.text
+
+
+def test_download_analysis_as_pdf(client, monkeypatch):
+    _install_download_fakes(monkeypatch)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=pdf")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert 'filename="Office-Lease-analysis.pdf"' in response.headers["content-disposition"]
+    assert response.content.startswith(b"%PDF")
+
+
+def test_pdf_text_maps_unicode_for_latin1_fonts():
+    # fpdf2's core fonts are latin-1 — the report builder maps common Unicode.
+    from backend.service.report import _pdf_text
+
+    assert _pdf_text("Monthly rent of ₹50,000 — “due”") == 'Monthly rent of Rs.50,000 - "due"'
+
+
+def test_download_analysis_defaults_to_pdf(client, monkeypatch):
+    _install_download_fakes(monkeypatch)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+
+
+def test_download_analysis_rejects_invalid_format(client, monkeypatch):
+    _install_download_fakes(monkeypatch)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=xlsx")
+    assert response.status_code == 400
+    assert "Invalid format" in response.json()["detail"]
+
+
+def test_download_analysis_without_saved_analysis_returns_404(client, monkeypatch):
+    _install_fakes(monkeypatch, _contract_document(original_name="Office Lease.pdf"))
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=pdf")
+    assert response.status_code == 404
+    assert "No saved analysis yet" in response.json()["detail"]
+
+
+def test_download_analysis_missing_contract_returns_404(client, monkeypatch):
+    _install_fakes(monkeypatch, None)
+    response = client.get(f"/analysis/contracts/{VALID_OBJECT_ID}/download?format=txt")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Contract not found."
+
+
+def test_download_analysis_rejects_invalid_contract_id(client):
+    response = client.get("/analysis/contracts/nope/download?format=txt")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid contract ID."

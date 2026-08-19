@@ -154,6 +154,7 @@ as `Authorization: Bearer <token>`):
 | `DELETE` | `/contracts/{id}` | Permanently delete a contract, its stored file, and all saved analyses; returns `204 No Content`. |
 | `POST` | `/analysis/analyze/{contract_id}` | Start a background Gemini analysis; returns `202 Accepted` immediately. Poll the contract status, then fetch the saved analysis. |
 | `GET` | `/analysis/contracts/{contract_id}` | Retrieve the latest saved analysis for a contract. |
+| `GET` | `/analysis/contracts/{contract_id}/download?format=pdf\|doc\|txt` | Download the latest analysis as a report file (`pdf` is the default). Filenames derive from the contract name, e.g. `Office-Lease-analysis.pdf`. |
 | `GET` | `/analysis/{analysis_id}` | Retrieve a saved analysis by its MongoDB `_id`. |
 
 ## How it works
@@ -165,8 +166,9 @@ as `Authorization: Bearer <token>`):
    - `not_a_contract` — Gemini's `is_contract` self-classification decided the document isn't a legal contract (no analysis is saved, so non-contracts never produce made-up clauses);
    - `error` — the analysis genuinely failed (the cause is logged server-side).
 4. The frontend polls while a contract is `analyzing` (detail page every 3 s, dashboard list likewise) and reloads the saved analysis when the status flips — so the report shows up automatically without a manual refresh.
-5. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
-6. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
+5. `GET /analysis/contracts/{contract_id}/download` renders the latest analysis as a downloadable report: plain text, Word-compatible HTML (`.doc`), or a PDF built with fpdf2 (`backend/service/report.py`). PDF core fonts are latin-1, so the builder maps common Unicode (₹ → `Rs.`, curly quotes → `"`, em/en dashes → `-`) before rendering.
+6. `DELETE /contracts/{contract_id}` removes the contract document, its R2/local object, and associated analysis documents after the user confirms the action in the frontend.
+7. Contracts and analyses are identified by MongoDB's built-in `_id`. On startup, legacy unique indexes on the unused `contract_id` / `analysis_id` fields are dropped automatically if present (they caused `E11000 duplicate key` errors because a missing field is indexed as `null`).
 
 ## Running the tests
 
@@ -210,6 +212,7 @@ parsing, including the `is_contract` guard (`test_gemini_analyse.py`).
 │   ├── service/
 │   │   ├── document_parser.py  # PDF/TXT text extraction
 │   │   ├── gemini_analyse.py   # Gemini API client, response parsing, is_contract guard
+│   │   ├── report.py           # Analysis report builders (PDF/DOC/TXT downloads)
 │   │   ├── storage.py          # R2/local upload and deletion adapter
 │   │   └── prompt.py           # Analysis prompts
 ├── uploads/                    # Local files when STORAGE_BACKEND=local
