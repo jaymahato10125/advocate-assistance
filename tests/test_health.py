@@ -14,6 +14,14 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 
+def test_health_check_head():
+    """Verify HEAD /health returns 200 without auth."""
+    app.dependency_overrides.clear()
+    client = TestClient(app)
+    response = client.head("/health")
+    assert response.status_code == 200
+
+
 def test_root_endpoint():
     """Verify GET / returns 200 and contains endpoint metadata."""
     app.dependency_overrides.clear()
@@ -23,3 +31,4 @@ def test_root_endpoint():
     data = response.json()
     assert data["app"] == "Advocate Contracts API"
     assert "GET /health" in data["endpoints"]
+
