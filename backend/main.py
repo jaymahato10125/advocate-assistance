@@ -45,6 +45,7 @@ async def root():
         "version": "1.0.0",
         "auth": "All /contracts and /analysis endpoints require a Clerk session token (Authorization: Bearer <token>).",
         "endpoints": {
+            "GET /health": "Lightweight health check",
             "POST /contracts/upload": "Upload a contract for analysis (PDF, TXT)",
             "GET /contracts/": "Retrieve a list of all uploaded contracts",
             "GET /contracts/{id}": "Retrieve a specific contract by ID",
@@ -52,5 +53,12 @@ async def root():
         }
     }
 
+
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "ok"}
+
+
 app.include_router(contracts_router)
 app.include_router(analysis_router)
+
